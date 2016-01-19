@@ -2,6 +2,8 @@ from __future__ import print_function
 import httplib2
 import os
 
+from ConfigParser import SafeConfigParser
+
 from apiclient import discovery
 import oauth2client
 from oauth2client import client
@@ -74,7 +76,16 @@ def main():
 	credentials = get_credentials()
 	http = credentials.authorize(httplib2.Http())
 	service = discovery.build('drive', 'v2', http=http)
-	fileId = '1D_kVj6eZLeBYkw19G18t0fsb0DXQww-swcoWGJj_ERo'
+	
+	parser = SafeConfigParser()
+	parser.read("DriveConfig.ini")
+	
+	for urls in parser.sections():
+		for name,value in parser.items(urls):
+			id = parser.items(urls)[0][1]
+			fileId = id.split("=")[1]
+					
+#	fileId = '1D_kVj6eZLeBYkw19G18t0fsb0DXQww-swcoWGJj_ERo'
 	perm_list = retrieve_permissions(service, fileId)
 	print (perm_list)
 	

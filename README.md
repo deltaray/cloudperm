@@ -22,6 +22,18 @@ CONFIGURATION
  your Google account in your web browser. Then you run the program as shown below. The program will open up an authentication
  link in your browser and ask you to accept the access by the program.
 
+ Now you will need to put a list of URLs into a config file so that the program can read that list and check the permissions
+ and report them back you to.
+ 
+ Create a file called DriveConfig.INI or use the existing one and put each Google drive URL into a command separated list as
+ a value of the keyword url.  Like this:
+ 
+ [urls]
+ url = "googledrivedocumenturl1", "googledrivedocumenturl2", etc...
+ 
+ If you need to make comments in the document, you can do so by starting the line with a # character. The rest of such a
+ line will be ignored.
+
 USAGE
 
  python permissionList.py
@@ -30,6 +42,16 @@ USAGE
 OUTPUT
 
   Upon running the program, it will read the list of urls to check from the config file and print out a list
-  of permissions that each user has for each document or folder.
+  of permissions that each user has for each document or folder. Here is an example of the program's output:
+  
+  $ python permissionList.py
+  My Document     Shruthi Katapally    write
+  Test Document   Mark Krenz   read
+  My Folder    Mark Krenz    write
+  My Folder    Shruthi Katapally write
+  $
   
   
+  AUTHORS
+  
+    gdoc_perm_checker was written by Shruthi Katapally and Mark Krenz

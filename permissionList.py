@@ -1,6 +1,9 @@
+#!/usr/bin/python
+
 from __future__ import print_function
 import httplib2
 import os
+import sys
 
 from ConfigParser import SafeConfigParser
 
@@ -10,16 +13,19 @@ from oauth2client import client
 from oauth2client import tools
 
 from apiclient import errors
+
+import pprint
 # ...
 
-try:
-    import argparse
-    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
-except ImportError:
-    flags = None
+
+#try:
+#    import argparse
+#    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
+#except ImportError:
+#    flags = None
 
 SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly'
-CLIENT_SECRET_FILE = 'client_secret.json'
+CLIENT_SECRET_FILE = '~/.credentials/client_secret.json'
 APPLICATION_NAME = 'Drive API Python Quickstart'
 
 
@@ -52,51 +58,97 @@ def get_credentials():
     return credentials
 
 def retrieve_permissions(service, file_id):
-	"""Retrieve a list of permissions.
+    """Retrieve a list of permissions.
 
-	Args:
-		service: Drive API service instance.
-		file_id: ID of the file to retrieve permissions for.
-	Returns:
-		List of permissions.
-	"""
-	try:
-		permissions = service.permissions().list(fileId=file_id).execute()
-		return permissions.get('items', [])
-	except errors.HttpError, error:
-		print ('An error occurred: %s' % error)
-	return None
+    Args:
+        service: Drive API service instance.
+        file_id: ID of the file to retrieve permissions for.
+    Returns:
+    List of permissions.
+    """
+    try:
+        permissions = service.permissions().list(fileId=file_id).execute()
+        return permissions.get('items', [])
+    except errors.HttpError, error:
+        print ('An error occurred: %s' % error)
+    return None
+
+def retrieve_document_title(service, file_id):
+    """Retrieve the title of the document.
+
+    Args:
+        service: Drive API service instance.
+        file_id: ID of the file to retrieve the title for.
+    Returns:
+    The title of the document
+    """
+    try:
+        filemetadata = service.files().get(fileId=file_id).execute()
+        return filemetadata['title']
+    except errors.HttpError, error:
+        print ('An error occured: %s' % error)
+    return None
+
+def retrieve_document_parents(service, file_id):
+    # Call my parents! Call my parents! Call my parents! *stomp* *stomp* *stomp*
+    """Retrieve the parents of the document.
+
+    Args:
+        service: Drive API service instance.
+        file_id: ID of the file to retrieve the parents for
+    Returns:
+    List of parents
+    """
+    try:
+        filemetadata = service.files().get(fileId=file_id).execute()
+        return filemetadata['parents']
+    except errors.HttpError, error:
+        print ('An error occured: %s' % error)
+    return None
 
 def main():
-	"""Shows basic usage of the Google Drive API.
+    """Shows basic usage of the Google Drive API.
+
+    Creates a Google Drive API service object and outputs the names and IDs
+    for up to 10 files.
+    """
+
+    pp = pprint.PrettyPrinter(indent=4)
+
+    credentials = get_credentials()
+    http = credentials.authorize(httplib2.Http())
+    service = discovery.build('drive', 'v2', http=http)
 	
-	Creates a Google Drive API service object and outputs the names and IDs
-	for up to 10 files.
-	"""
-	credentials = get_credentials()
-	http = credentials.authorize(httplib2.Http())
-	service = discovery.build('drive', 'v2', http=http)
+    parser = SafeConfigParser()
+    parser.read("DriveConfig.INI")
+
+    # Get our list of file IDs to check, either form the config file or from the command line arguments.
+
+    fileids = [];
+
+
+    if (len(sys.argv) > 1):
+        argumentlist = sys.argv[1:]
+        for fileid in argumentlist:
+            fileids.append(fileid)
+        
+    else:
+        for section in parser.sections(): # Fix this later.
+            for name,value in parser.items(section):
+                if name == "url":
+                    fileids.append(value)
+
+
+    for fileid in fileids:
+        title = retrieve_document_title(service, fileid);
+        print("Document Title: " + title);
+        perm_list = retrieve_permissions(service, fileid)
+        parents = retrieve_document_parents(service, fileid)
+        #print("Parents: " + str(parents))
+        for entry in perm_list:
+            if type(entry) is dict:
+                print("  " + entry['role'] + ":  " + entry['emailAddress']);
 	
-	parser = SafeConfigParser()
-	parser.read("DriveConfig.ini")
-	
-	for urls in parser.sections():
-		for name,value in parser.items(urls):
-			id = parser.items(urls)[0][1]
-			fileId = id.split("=")[1]
-					
-#	fileId = '1D_kVj6eZLeBYkw19G18t0fsb0DXQww-swcoWGJj_ERo'
-	perm_list = retrieve_permissions(service, fileId)
-	print (perm_list)
-	
-#    results = service.files().list(maxResults=10).execute()
-#    items = results.get('items', [])
-#    if not items:
-#        print('No files found.')
-#    else:
-#        print('Files:')
-#        for item in items:
-#            print('{0} ({1})'.format(item['title'], item['id']))
 
 if __name__ == '__main__':
     main()

@@ -33,7 +33,7 @@ import pprint
 #    flags = None
 
 SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly'
-CLIENT_SECRET_FILE = 'client_secret.json'
+CLIENT_SECRET_FILE = '~/.credentials/client_secret.json'
 APPLICATION_NAME = 'Drive API Python Quickstart'
 
 

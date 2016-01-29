@@ -147,8 +147,15 @@ def main():
         #print("Parents: " + str(parents))
         for entry in perm_list:
             if type(entry) is dict:
-                print("  " + entry['role'] + ":  " + entry['emailAddress']);
-	
+                if 'emailAddress' in entry:
+                    print("  " + entry['role'] + ":  " + entry['emailAddress']);
+                else: # This probably is an entry that implies anyone with link or public.
+                    #print("Entry json: " + str(entry));
+                    if (entry['type'] == 'anyone' and entry['id'] == 'anyoneWithLink'):
+                        print("  WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT.");
+                    elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
+                        print("  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH.");
+                    	
 
 if __name__ == '__main__':
     main()

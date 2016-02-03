@@ -106,6 +106,49 @@ def retrieve_document_parents(service, file_id):
         print ('An error occured: %s' % error)
     return None
 
+
+def build_first_path(service, file_id):
+    """Build the full path of the first parent in the list of parents
+    """
+    result = ""
+    isroot = 0;
+
+    while isroot == 0:
+        try:
+            thefile = service.files().get(fileId=file_id).execute()
+            #print("path is now " + result)
+            #print("looking at " + thefile['title'])
+            if len(thefile['parents']) == 0:
+                #print("This document was shared with you, but not part of your my drive")
+                result = "[SHARED WITH YOU]/" + result
+                break
+            else:
+                parentfile = thefile['parents'][0] # Let's just use the first one for now. We'll handle multiple later.
+            #print("parents: " + str(parentfile))
+            if parentfile['isRoot'] == True:
+                isroot = 1;
+                #print("Found the root")
+                result = "/" + thefile['title'] + "/" + result
+                #print("Final result was " + result)
+                break
+            else:
+                #print("Going up a dir to " + parentfile['id'])
+                result = thefile['title'] + "/" + result
+                file_id = parentfile['id']
+
+
+        except errors.HttpError, error:
+            print('An error occured: %s' % error)
+            break
+
+    result = re.sub('/$', '', result)
+    result
+
+    return result
+
+
+
+
 def main():
     """Shows basic usage of the Google Drive API.
 

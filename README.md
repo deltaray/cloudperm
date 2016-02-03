@@ -31,6 +31,8 @@ This software depends on the following python modules:
 
  Now you will need to put a list of URLs into a config file so that the program can read that list and check the permissions
  and report them back you to.
+
+The next part is currently optional. Eventually a config file will need to be created.
  
  Create a file called DriveConfig.INI or use the existing one and put each Google drive URL into a command separated list as
  a value of the keyword url.  Like this:

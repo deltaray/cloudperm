@@ -1,13 +1,20 @@
 # gdoc_perm_checker
 An app that checks the permissions of Google Drive documents against a config file.
 
-GOAL
+# GOAL
 
  To automate the checking of access permissions on Google Drive documents and folders and alert the user of unexpected changes.
 
-DEPENDENCIES
+# DEPENDENCIES
 
-CONFIGURATION
+This software depends on the following python modules:
+
+1. httplib2
+2. ConfigParser
+3. apiclient
+4. oauth2client
+
+# CONFIGURATION
 
  Before using this program, you will need to register your account with the Google API first. This is done by visiting
  https://console.developers.google.com/start/api?id=drive
@@ -27,31 +34,38 @@ CONFIGURATION
  
  Create a file called DriveConfig.INI or use the existing one and put each Google drive URL into a command separated list as
  a value of the keyword url.  Like this:
- 
- [urls]
- url = "googledrivedocumenturl1", "googledrivedocumenturl2", etc...
- 
+```
+[urls]
+url = "googledrivedocumenturl1", "googledrivedocumenturl2", etc...
+```
  If you need to make comments in the document, you can do so by starting the line with a # character. The rest of such a
  line will be ignored.
 
-USAGE
+# USAGE
 
- python permissionList.py
+## listFiles.py
+```
+listFiles.py
+```
+
+## permissionList.py
+```
+permissionList.py <GoogleDocumentID>
+```
  
- 
-OUTPUT
+# OUTPUT
 
   Upon running the program, it will read the list of urls to check from the config file and print out a list
   of permissions that each user has for each document or folder. Here is an example of the program's output:
   
+  ```
   $ python permissionList.py
-  My Document     Shruthi Katapally    write
-  Test Document   Mark Krenz   read
-  My Folder    Mark Krenz    write
-  My Folder    Shruthi Katapally write
-  $
+  Document Title: My Test Document
+   owner: jsmith31556@google.com
+   writer: fjones55@wwjjhu.edu
+   WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT.
+  ```
   
+  # AUTHORS
   
-  AUTHORS
-  
-    gdoc_perm_checker was written by Shruthi Katapally and Mark Krenz
+    gdoc_perm_checker was written by Mark Krenz and Shruthi Katapally

@@ -66,6 +66,6 @@ permissionList.py <GoogleDocumentID>
    WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT.
   ```
   
-  # AUTHORS
-  
-    gdoc_perm_checker was written by Mark Krenz and Shruthi Katapally
+# AUTHORS
+
+gdoc_perm_checker was written by Mark Krenz and Shruthi Katapally

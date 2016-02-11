@@ -13,7 +13,7 @@ setup(name='gdoc_perm_checker',
       author="Mark Krenz",
       url="https://github.com/deltaray/gdoc_perm_checker",
       install_requires=[
-          "apiclient",
+          "google-api-python-client",
           "ConfigParser",
           "httplib2",
           "oauth2client",

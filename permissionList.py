@@ -198,6 +198,17 @@ def main():
                         print("  WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT.");
                     elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
                         print("  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH.");
+                    elif (entry['type'] == 'domain'):
+                        permitted_domain = entry['domain'];
+                        domain_allowed_role = entry['role'];
+                        print("  WARNING: ANYONE FROM THE DOMAIN '" + permitted_domain + "' HAS '" + domain_allowed_role + "' PERMISSION TO THIS DOCUMENT.");
+                    else:
+                        # Handle the unknown case in a helpful way.
+                        print(" Unknown permission type:");
+                        pp = pprint.PrettyPrinter(indent=8,depth=6)
+                        pp.pprint(entry);
+
+
                     	
 
 if __name__ == '__main__':

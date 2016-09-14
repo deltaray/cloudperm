@@ -67,6 +67,10 @@ def get_credentials():
 
 
 def retrieve_all_files(service):
+    """List all files using a google API query with no starting position.
+       This does not work because Google has a documented API limit of 1000 and
+       an undocumented API limit of 460. See get_files_in_folder() instead.
+    """
     result = []
     page_token = None
 
@@ -75,12 +79,17 @@ def retrieve_all_files(service):
             param = {}
             #param['maxResults'] = 1000
             param['maxResults'] = 1000
+            param['q'] = "mimeType='image/jpeg'"
             if page_token:
                 param['pageToken'] = page_token
             files = service.files().list(**param).execute()
 
+            print("List files returned " + str(len(files.keys())) + " this time");
+
             result.extend(files['items'])
             page_token = files.get('nextPageToken')
+            param['pageToken'] = page_token
+            print("Next page token is " + page_token);
             if not page_token:
                 break
         except errors.HttpError, error:
@@ -88,33 +97,78 @@ def retrieve_all_files(service):
             break
         return result
 
+def get_files_in_folder(service, folder_id):
+    """Return an array of all the entities in a folder.
+    """
+    result = []
+    page_token = None
+    pp = pprint.PrettyPrinter(indent=4)
+
+    while True:
+        try:
+            param = {}
+            param['maxResults'] = 1000
+            param['q'] = "'" + folder_id + "' in parents"
+            # Just some other examples of queries you can use.
+            #param['q'] = "mimeType='application/vnd.google-apps.folder'"
+            #param['q'] = "modifiedDate > '2016-07-12T12:00:00'"
+            if page_token:
+                param['pageToken'] = page_token
+            files = service.files().list(**param).execute()
+
+            result.extend(files['items'])
+            page_token = files.get('nextPageToken')
+            param['pageToken'] = page_token
+            if not page_token:
+                break
+        except errors.HttpError, error:
+            print('An error occurred while retrieving files in folder %s: %s' % (folder_id,error))
+            break
+    return result # Proof to me that python indentation requirement is stupid. I spent 2 hours trying to figure out why this
+                  # this function was returning nothing only to realize that I didn't have my return statement in the 
+                  # right place because I didn't notice where it was. With brackets, I would have noticed this mistake.
+    #return files['items']
+
+def walk_folders(service, folder_id):
+    allfiles = []
+    pp = pprint.PrettyPrinter(indent=4)
+
+    files = get_files_in_folder(service, folder_id)
+    allfiles.extend(files)
+    for file_entry in files:
+        file_mimetype = file_entry['mimeType']
+        file_id = file_entry['id']
+        if file_mimetype == 'application/vnd.google-apps.folder':
+            allfiles.extend(walk_folders(service, file_id))
+
+    return allfiles
+
+
+
 def build_first_path(service, file_id):
     """Build the full path of the first parent in the list of parents
     """
     result = "" 
     isroot = 0;
 
+    directory_separator = u" \u25B6 "
+
     while isroot == 0:
         try:
             thefile = service.files().get(fileId=file_id).execute()
-            #print("path is now " + result)
-            #print("looking at " + thefile['title'])
             if len(thefile['parents']) == 0:
-                #print("This document was shared with you, but not part of your my drive")
-                result = "[SHARED WITH YOU]/" + result
+                result = "[SHARED WITH YOU]" + directory_separator + result
                 break
             else:
                 parentfile = thefile['parents'][0] # Let's just use the first one for now. We'll handle multiple later.
-            #print("parents: " + str(parentfile))
+                #print("parents: " + str(parentfile))
             if parentfile['isRoot'] == True:
                 isroot = 1;
-                #print("Found the root")
-                result = "/" + thefile['title'] + "/" + result
-                #print("Final result was " + result)
+                result = thefile['title'] + directory_separator + result
                 break
             else:
                 #print("Going up a dir to " + parentfile['id'])
-                result = thefile['title'] + "/" + result
+                result = thefile['title'] + directory_separator + result
                 file_id = parentfile['id']
 
 
@@ -122,37 +176,54 @@ def build_first_path(service, file_id):
             print('An error occured: %s' % error)
             break
 
-    result = re.sub('/$', '', result)
-    result
+    result = re.sub(directory_separator + '$', '', result) # Remove directory_separator from the end of a path.
 
     return result
 
 
-
 def main():
-    """Shows basic usage of the Google Drive API.
-
-    Creates a Google Drive API service object and outputs the names and IDs
-    for up to 10 files.
+    """List all files and folders recursively under the specified folder id.
     """
+
+    folderids = [];
+
+	# Get the arguments for the folders to check or from the config file.
+    if (len(sys.argv) > 1):
+        argumentlist = sys.argv[1:]
+        for folderid in argumentlist:
+            folderids.append(folderid)
+
+    else:
+        for section in parser.sections(): # Fix this later.
+            for name,value in parser.items(section):
+                if name == "url":
+                    folderids.append(value)
+
 
     pp = pprint.PrettyPrinter(indent=4)
 
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('drive', 'v2', http=http)
+    numberoffiles = 0
 	
-
     # Get our list of file IDs.
+    for start_folder_id in folderids:
+        #returnedfiles = get_files_in_folder(service, start_folder_id)
+        returnedfiles = walk_folders(service, start_folder_id)
+        #pp.pprint(returnedfiles)
+        #print(type(returnedfiles))
+        if type(returnedfiles) == list:
+            for fileitem in returnedfiles:
+                path = build_first_path(service,fileitem['id'])
+                #print(fileitem['id'] + "    " + fileitem['mimeType'] + "     " + path  + fileitem['title'])
+                fieldsep = u' \u2588 ' # Unicode Full block
+                outputline = u"{1:<45} {0} {2:<45} {0} {3}".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                print(outputline)
+                #print(fileitem['id'] + "    " + fileitem['mimeType'] + "     " + fileitem['title'])
+                numberoffiles+=1
 
-
-    allfiles = retrieve_all_files(service)
-    numberoffiles = len(allfiles);
     print("Total files: " + str(numberoffiles))
-    for fileitem in allfiles:
-        path = build_first_path(service,fileitem['id'])
-        print(fileitem['id'] + "    " + fileitem['mimeType'] + "     " + path) # + fileitem['title'])
-	
 
 if __name__ == '__main__':
     main()

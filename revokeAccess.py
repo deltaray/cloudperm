@@ -117,14 +117,14 @@ def retrieve_document_parents(service, file_id):
 
 def revoke_document_role(service, file_id, role_id):
     # A non batch operation to revoke a specific permission.
-    """Delete a specific permission on a permission file.
+    """Revoke a specific permission on a permission file.
 
     Args:
         service: Drive API service instance.
         file_id: file ID of the file to revoke the perm for.
         role_id: permission ID of the file to retrieve the parents for
     Returns:
-    Success or failure.
+    Empty on success
     """
     try:
         param = {}
@@ -179,10 +179,9 @@ def build_first_path(service, file_id):
 
 
 def main():
-    """Shows basic usage of the Google Drive API.
-
-    Creates a Google Drive API service object and outputs the names and IDs
-    for up to 10 files.
+    """
+    Loop through the list of provided document IDs and revoke
+    the access for the provided Google Drive account.
     """
 
     pp = pprint.PrettyPrinter(indent=4)
@@ -194,7 +193,7 @@ def main():
     parser = SafeConfigParser()
     parser.read("DriveConfig.INI")
 
-    # Get our list of file IDs to check, either form the config file or from the command line arguments.
+    # 
 
     fileids = [];
 
@@ -213,7 +212,6 @@ def main():
 
     for fileid in fileids:
         title = retrieve_document_title(service, fileid);
-        #print("Document Title: " + title);
         perm_list = retrieve_permissions(service, fileid)
        
         accountrevoked = False;
@@ -221,13 +219,11 @@ def main():
         for entry in perm_list:
             if type(entry) is dict:
                 if 'emailAddress' in entry:
-                    #print("  " + entry['role'] + ":  " + entry['emailAddress']);
                     if entry['emailAddress'] == accountToRevoke:
                         permIdToRevoke = entry['id']
                         revoke_response = revoke_document_role(service, fileid, permIdToRevoke);
 
                         pp = pprint.PrettyPrinter(indent=8,depth=6)
-                        #pp.pprint(entry);
                         if revoke_response:
                             pp.pprint(revoke_response);
                         else: # An empty response to 

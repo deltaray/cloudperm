@@ -1,9 +1,10 @@
-# gdoc_perm_checker
-An app that checks the permissions of Google Drive documents against a config file.
+# Cloudperm
+A set of programs that help you check, audit report and change roles and permissions on popular Cloud platforms.
+Right now this is only for Google Drive/Docs.
 
 # GOAL
 
- To automate the checking of access permissions on Google Drive documents and folders and alert the user of unexpected changes.
+ To automate the checking of access permissions on cloud file/document sharing platforms such as Google Drive and alert the user of unexpected changes.
 
 # DEPENDENCIES
 
@@ -45,14 +46,14 @@ url = "googledrivedocumenturl1", "googledrivedocumenturl2", etc...
 
 # USAGE
 
-## listFiles.py
+## listFiles
 ```
-listFiles.py
+listFiles <GoogleDocumentID>
 ```
 
-## permissionList.py
+## permissionList
 ```
-permissionList.py <GoogleDocumentID>
+permissionList <GoogleDocumentID>
 ```
  
 # OUTPUT
@@ -61,7 +62,7 @@ permissionList.py <GoogleDocumentID>
   of permissions that each user has for each document or folder. Here is an example of the program's output:
   
   ```
-  $ python permissionList.py
+  $ permissionList 9F0A44B460A94E0281A8604A0EFE1C96
   Document Title: My Test Document
    owner: jsmith31556@google.com
    writer: fjones55@wwjjhu.edu
@@ -70,4 +71,4 @@ permissionList.py <GoogleDocumentID>
   
 # AUTHORS
 
-gdoc_perm_checker was written by Mark Krenz and Shruthi Katapally
+cloudperm was written by Mark Krenz.

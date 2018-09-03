@@ -1,11 +1,7 @@
-#!/usr/bin/python
 
-from __future__ import print_function
 import httplib2
 import os
 import sys
-
-from ConfigParser import SafeConfigParser
 
 from apiclient import discovery
 import oauth2client
@@ -14,24 +10,22 @@ from oauth2client import tools
 
 from apiclient import errors
 
+from ConfigParser import SafeConfigParser
+
 import pprint
-# ...
 
 
-try:
-    import argparse
-    parser = argparse.ArgumentParser(parents=[tools.argparser])                 
-    parser.add_argument('--credential-directory', type=str, default='~/.credentials', help='Specify a credentials directory (default: ~/.credentials)')                                                      
-    parser.add_argument('documents', metavar='DocumentID', type=str, nargs='+', help='Google Document IDs')                                                      
-    flags = parser.parse_args()         
-except ImportError:
-    flags = None
 
-SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly'
-APPLICATION_NAME = 'Drive API Python Quickstart'
+import argparse
+cloudperm_argparser = argparse.ArgumentParser(parents=[tools.argparser], add_help=False)
+cloudperm_argparser.add_argument('--credential-directory', '-D', type=str, default='~/.credentials', help='Specify a credentials directory (default: ~/.credentials)')
+#flags = cloudperm_argparser.parse_args()
 
+#SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly'
+SCOPES = 'https://www.googleapis.com/auth/drive'
+APPLICATION_NAME = 'CloudPerm'
 
-def get_credentials():
+def get_credentials(flags):
     """Gets valid user credentials from storage.
 
     If nothing has been stored, or if the stored credentials are invalid,
@@ -148,67 +142,3 @@ def build_first_path(service, file_id):
     return result
 
 
-
-
-def main():
-    """Shows basic usage of the Google Drive API.
-
-    Creates a Google Drive API service object and outputs the names and IDs
-    for up to 10 files.
-    """
-
-    pp = pprint.PrettyPrinter(indent=4)
-
-    credentials = get_credentials()
-    http = credentials.authorize(httplib2.Http())
-    service = discovery.build('drive', 'v2', http=http)
-	
-    parser = SafeConfigParser()
-    parser.read("DriveConfig.INI")
-
-    # Get our list of file IDs to check, either form the config file or from the command line arguments.
-
-    fileids = [];
-
-    if flags.documents:
-        for fileid in flags.documents:
-            fileids.append(fileid)
-        
-    else:
-        for section in parser.sections(): # Fix this later.
-            for name,value in parser.items(section):
-                if name == "url":
-                    fileids.append(value)
-
-
-    for fileid in fileids:
-        title = retrieve_document_title(service, fileid);
-        print("Document Title: " + title);
-        perm_list = retrieve_permissions(service, fileid)
-        parents = retrieve_document_parents(service, fileid)
-        #print("Parents: " + str(parents))
-        for entry in perm_list:
-            if type(entry) is dict:
-                if 'emailAddress' in entry:
-                    print("  " + entry['role'] + ":  " + entry['emailAddress']);
-                else: # This probably is an entry that implies anyone with link or public.
-                    #print("Entry json: " + str(entry));
-                    if (entry['type'] == 'anyone' and entry['id'] == 'anyoneWithLink'):
-                        print("  WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT.");
-                    elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
-                        print("  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH.");
-                    elif (entry['type'] == 'domain'):
-                        permitted_domain = entry['domain'];
-                        domain_allowed_role = entry['role'];
-                        print("  WARNING: ANYONE FROM THE DOMAIN '" + permitted_domain + "' HAS '" + domain_allowed_role + "' PERMISSION TO THIS DOCUMENT.");
-                    else:
-                        # Handle the unknown case in a helpful way.
-                        print(" Unknown permission type:");
-                        pp = pprint.PrettyPrinter(indent=8,depth=6)
-                        pp.pprint(entry);
-
-
-                    	
-
-if __name__ == '__main__':
-    main()

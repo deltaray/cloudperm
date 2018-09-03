@@ -7,11 +7,11 @@ try:
 except:
     from distutils.core import setup
 
-setup(name='gdoc_perm_checker',
-      version='0.1',
-      description="Google drive permissions checker",
+setup(name='cloudperm',
+      version='0.2',
+      description="Cloud Storage Service permissions auditing software",
       author="Mark Krenz",
-      url="https://github.com/deltaray/gdoc_perm_checker",
+      url="https://github.com/deltaray/cloudperm",
       install_requires=[
           "google-api-python-client",
           "ConfigParser",
@@ -20,7 +20,8 @@ setup(name='gdoc_perm_checker',
           "urllib3"
       ],
       scripts=[
-          'listFiles.py',
-          'permissionList.py'
+          'listFiles',
+          'permissionList',
+          'revokeAccess'
       ]
       )

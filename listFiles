@@ -17,6 +17,8 @@ import pprint
 try:
     import argparse
     parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
+    parser.add_argument('--recursive', '-r', action='store_true', help='Recursively list files inside folders')
+    parser.add_argument('--show-mime-type', '-M', action='store_true', help='Show column for document MIME type')
     parser.add_argument('documents', metavar='DocumentID', type=str, nargs='+', help='Google Document IDs')
     args = parser.parse_args()
 except ImportError:
@@ -25,6 +27,7 @@ except ImportError:
 def main():
     """List all files and folders recursively under the specified folder id.
     """
+    fieldsep = u' \u2588 ' # Unicode Full block
 
     folderids = [];
 
@@ -46,21 +49,22 @@ def main():
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('drive', 'v2', http=http)
     numberoffiles = 0
+
+    depth = 0;
+    if args.recursive:
+        depth = 1000 # Anything over 1000 probably means a loop has occurred.
 	
     # Get our list of file IDs.
     for start_folder_id in folderids:
-        #returnedfiles = get_files_in_folder(service, start_folder_id)
-        returnedfiles = walk_folders(service, start_folder_id)
-        #pp.pprint(returnedfiles)
-        #print(type(returnedfiles))
+        returnedfiles = walk_folders(service, start_folder_id, depth)
         if type(returnedfiles) == list:
             for fileitem in returnedfiles:
                 path = build_first_path(service,fileitem['id'])
-                #print(fileitem['id'] + "    " + fileitem['mimeType'] + "     " + path  + fileitem['title'])
-                fieldsep = u' \u2588 ' # Unicode Full block
-                outputline = u"{1:<45} {0} {2:<45} {0} {3}".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                if args.show_mime_type:
+                    outputline = u"{1:<45} {0} {2:<45} {0} {3}".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                else: 
+                    outputline = u"{1:<45} {0} {2}".format(fieldsep, fileitem['id'], path)
                 print(outputline)
-                #print(fileitem['id'] + "    " + fileitem['mimeType'] + "     " + fileitem['title'])
                 numberoffiles+=1
 
     print("Total files: " + str(numberoffiles))

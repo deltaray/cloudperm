@@ -19,7 +19,7 @@ try:
     parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
     parser.add_argument('--recursive', '-r', action='store_true', help='Recursively list files inside folders')
     parser.add_argument('--show-mime-type', '-M', action='store_true', help='Show column for document MIME type')
-    parser.add_argument('documents', metavar='DocumentID', type=str, nargs='+', help='Google Document IDs')
+    parser.add_argument('documents', metavar='DocID', type=str, nargs='*', help='Google Document IDs')
     args = parser.parse_args()
 except ImportError:
     args = None
@@ -32,15 +32,16 @@ def main():
     folderids = [];
 
 	# Get the arguments for the folders to check or from the config file.
-    if (args.documents > 0):
+    if args.documents:
         for folderid in args.documents:
             folderids.append(folderid)
-
     else:
-        for section in parser.sections(): # Fix this later.
-            for name,value in parser.items(section):
-                if name == "url":
-                    folderids.append(value)
+        folderids.append('root')
+
+#        for section in parser.sections(): # Fix this later.
+#            for name,value in parser.items(section):
+#                if name == "url":
+#                    folderids.append(value)
 
 
     pp = pprint.PrettyPrinter(indent=4)

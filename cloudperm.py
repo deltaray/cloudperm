@@ -149,6 +149,7 @@ def get_files_in_folder(service, folder_id):
             param = {}
             param['maxResults'] = 1000
             param['q'] = "'" + folder_id + "' in parents"
+
             # Just some other examples of queries you can use.
             #param['q'] = "mimeType='application/vnd.google-apps.folder'"
             #param['q'] = "modifiedDate > '2016-07-12T12:00:00'"
@@ -174,6 +175,7 @@ def walk_folders(service, folder_id, depth=0):
     allfiles = []
     pp = pprint.PrettyPrinter(indent=4)
 
+    #files = get_files_in_folder(service, folder_id, True)
     files = get_files_in_folder(service, folder_id)
     allfiles.extend(files)
     for file_entry in files:

@@ -171,7 +171,7 @@ def get_files_in_folder(service, folder_id):
     #return files['items']
 
 
-def walk_folders(service, folder_id, depth=0):
+def walk_folders(service, folder_id, depth=0, excluded_folder_ids=[]):
     allfiles = []
     pp = pprint.PrettyPrinter(indent=4)
 
@@ -180,9 +180,9 @@ def walk_folders(service, folder_id, depth=0):
     allfiles.extend(files)
     for file_entry in files:
         file_mimetype = file_entry['mimeType']
-        fild_id = file_entry['id']
-        if file_mimetype == 'application/vnd.google-apps.folder' and (depth > 0):
-            allfiles.extend(walk_folders(service, fild_id, depth - 1))
+        file_id = file_entry['id']
+        if file_mimetype == 'application/vnd.google-apps.folder' and (depth > 0) and file_id not in excluded_folder_ids:
+            allfiles.extend(walk_folders(service, file_id, depth - 1))
 
     return allfiles
 

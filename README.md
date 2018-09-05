@@ -48,12 +48,29 @@ url = "googledrivedocumenturl1", "googledrivedocumenturl2", etc...
 
 ## listFiles
 ```
-listFiles <GoogleDocumentID>
+listFiles [Google Folder DocumentID] [Folder DocID 2] [...]
 ```
+listFiles can either be run without an argument to show the files and folders under your My Drive section, or
+by specifying one more more folder document ids, the sub files and folders of those folders. You can also
+recursively decend into subfolders with the --recursive option and specify a maximum depth to decend with
+--max-depth. If you want to exclude specific subfolders you can do that by using one or more
+--exclude-folder options.
+
+Example: 
+```
+listFiles --recursive --max-depth 3 -E d9da230885ad407bb0461f6e37979208 -E c4905df255834c338cd9bdddb4f8321c 4bdff3cd0926432c94c2d90be7f3890b | tee drivefiles.txt
+```
+This will recursively walk the folder "heirarchy starting with the folder with docid 4bdff3cd0926432c94c2d90be7f3890b
+and it will not decend into the folders with document ids d9da230885ad407bb0461f6e37979208 or c4905df255834c338cd9bdddb4f8321c. 
+It will then pass the output to the tee program, writing to the file 'drivefiles.txt' while also displaying a copy
+of the data in the terminal.
+
+Note, it can take a non-trivial amount of time before starts displaying output and may take a while to completely finish.
+
 
 ## permissionList
 ```
-permissionList <GoogleDocumentID>
+permissionList <Google DocumentID>
 ```
  
 # OUTPUT
@@ -68,7 +85,27 @@ permissionList <GoogleDocumentID>
    writer: fjones55@wwjjhu.edu
    WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT.
   ```
+
+# WORKFLOW
+
+This sogtware has been designed so that you utilize the different commands as part of an overall workflow as follows:
+
+* listFiles -r '''folder docid'''
+* permissionList '''docid'''
+* As needed: revokeAccess '''accountemail''' '''docid'''
+* [Wash and repeat]
+
+All these programs can take more than one document id as an argument and process the list. It is up
+to you, however the author of the software usually runs the programs in this fashion.
+
+* listFiles -r C9A6BD209F8A4F02A019D2DA09725D57 | tee drive-files-YYYYMMDD.txt
+* cat drive-files-YYYYMMDD.txt | while read docid undef ; do permisssionList "$docid" ;echo ; done | tee drive-files-perms-YYYYMMDD.txt
+* grep -e "Doc Id:" -e "Path:" -e WARNING drive-files-perms-YYYYMMDD.txt | grep -B2 WARNING | less -S
+
+
+ 
   
 # AUTHORS
 
-cloudperm was written by Mark Krenz.
+cloudperm was written by Mark Krenz and is released under a GPL version 2 license.
+Some initial work on this project was also by Shruthi Katapally.

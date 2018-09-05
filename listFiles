@@ -19,6 +19,7 @@ try:
     parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
     parser.add_argument('--recursive', '-r', action='store_true', help='Recursively list files inside folders')
     parser.add_argument('--max-depth', '-d', type=int, default=1000, help='The maximum depth that recursion can go.')
+    parser.add_argument('--exclude-folder', '-E', type=str, action='append', help='Do not decend into the folder specified by the DocID')
     parser.add_argument('--show-mime-type', '-M', action='store_true', help='Show column for document MIME type')
     parser.add_argument('documents', metavar='DocID', type=str, nargs='*', help='Google Document IDs')
     args = parser.parse_args()
@@ -58,7 +59,7 @@ def main():
 	
     # Get our list of file IDs.
     for start_folder_id in folderids:
-        returnedfiles = walk_folders(service, start_folder_id, depth)
+        returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
         if type(returnedfiles) == list:
             for fileitem in returnedfiles:
                 path = build_first_path(service,fileitem['id'])

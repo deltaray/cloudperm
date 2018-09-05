@@ -181,8 +181,8 @@ def walk_folders(service, folder_id, depth=0):
     for file_entry in files:
         file_mimetype = file_entry['mimeType']
         fild_id = file_entry['id']
-        if file_mimetype == 'application/vnd.google-apps.folder' and depth > 0:
-            allfiles.extend(walk_folders(service, fild_id, --depth))
+        if file_mimetype == 'application/vnd.google-apps.folder' and (depth > 0):
+            allfiles.extend(walk_folders(service, fild_id, depth - 1))
 
     return allfiles
 

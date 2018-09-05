@@ -18,6 +18,7 @@ try:
     import argparse
     parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
     parser.add_argument('--recursive', '-r', action='store_true', help='Recursively list files inside folders')
+    parser.add_argument('--max-depth', '-d', type=int, default=1000, help='The maximum depth that recursion can go.')
     parser.add_argument('--show-mime-type', '-M', action='store_true', help='Show column for document MIME type')
     parser.add_argument('documents', metavar='DocID', type=str, nargs='*', help='Google Document IDs')
     args = parser.parse_args()
@@ -53,7 +54,7 @@ def main():
 
     depth = 0;
     if args.recursive:
-        depth = 1000 # Anything over 1000 probably means a loop has occurred.
+        depth = args.max_depth # defaults to 1000, which probably means a loop.
 	
     # Get our list of file IDs.
     for start_folder_id in folderids:

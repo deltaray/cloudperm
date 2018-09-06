@@ -88,7 +88,7 @@ permissionList <Google DocumentID>
 
 # WORKFLOW
 
-This sogtware has been designed so that you utilize the different commands as part of an overall workflow as follows:
+This software has been designed so that you utilize the different commands as part of an overall workflow as follows:
 
 * listFiles -r '''folder docid'''
 * permissionList '''docid'''

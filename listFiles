@@ -21,6 +21,7 @@ try:
     parser.add_argument('--max-depth', '-d', type=int, default=1000, help='The maximum depth that recursion can go.')
     parser.add_argument('--exclude-folder', '-E', type=str, default=[], action='append', help='Do not decend into the folder specified by the DocID')
     parser.add_argument('--show-mime-type', '-M', action='store_true', help='Show column for document MIME type')
+    parser.add_argument('--long-list', '-l', action='store_true', help='Show owner and date modified columns.')
     parser.add_argument('documents', metavar='DocID', type=str, nargs='*', help='Google Document IDs')
     args = parser.parse_args()
 except ImportError:
@@ -62,9 +63,14 @@ def main():
         returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
         if type(returnedfiles) == list:
             for fileitem in returnedfiles:
+                pp.pprint(fileitem)
                 path = build_first_path(service,fileitem['id'])
                 if args.show_mime_type:
                     outputline = u"{1:<45} {0} {2:<45} {0} {3}".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                if args.long_list:
+                    ownerlist = ",".join(fileitem['ownerNames'])
+                    lastmodified = fileitem['modifiedDate']
+                    outputline = u"{1:<45} {0} {2:<25} {0} {3} {0} {4}".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
                 else: 
                     outputline = u"{1:<45} {0} {2}".format(fieldsep, fileitem['id'], path)
                 print(outputline)

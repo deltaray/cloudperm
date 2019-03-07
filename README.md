@@ -12,26 +12,35 @@ This software depends on the following python modules:
 
 1. httplib2
 2. ConfigParser
-3. apiclient
+3. google-api-python-client (https://github.com/googleapis/google-api-python-client)
 4. oauth2client
+
+Depending on your distribution, you may need to install other modules to meet the above
+depencies.
 
 # CONFIGURATION
 
- Before using this program, you will need to register your account with the Google API first. This is done by visiting
+ NOTE: The steps below may vary a bit from what you end up seeing due to changes in Google's registration
+ process or the unique qualities or state of your own account. You may need to look around a bit to find
+ the correct location to complete a step in this process.
+ 
+ Before using this program, you will need to register your account with the Google API first. This is done by first visiting
  https://console.developers.google.com/start/api?id=drive
  1. Sign into your account and create a new project named according to what you want to call your google drive auditing program.
- 2. Select New credentials in the central window that comes up and choose OAuth clien ID
+ 2. Select New credentials in the central window that comes up and choose OAuth client ID
  3. You may need to configure the project name on the consent screen.
  4. Specify that this is a command line client
  5. Once it shows you the client id credentials you can click ok and then download the json file with the client credentials.
  6. Put the json file you downloaded into the project folder along with the program. Name it client_secret.json
 
  Next, you will need to authenticate the software with your Google account. You do this by first logging into
- your Google account in your web browser. Then you run the program as shown below. The program will open up an authentication
- link in your browser and ask you to accept the access by the program.
+ your Google account in your web browser. Then you run the 'listFiles' program, which upon first run will try to
+ complete the initial oauth setup process. The program will open up an authentication link in your browser
+ and ask you to accept the access by the program.
 
- Now you will need to put a list of URLs into a config file so that the program can read that list and check the permissions
- and report them back you to.
+```
+./listFiles
+```
 
 The next part is currently optional. Eventually a config file will need to be created.
  

@@ -67,10 +67,10 @@ def main():
                             pp.pprint(revoke_response);
                         else: # An empty response to 
                             accountrevoked = True;
-                            print("Revoked access for " + accountToRevoke + " from document '" + title + "'");
+                            print("Revoked access for " + accountToRevoke + " from document '" + title.encode('utf-8') + "'");
 
         if not accountrevoked:
-            print("WARNING: access was not revoked for " + accountToRevoke + " on file '" + title + "'");
+            print("WARNING: access was not revoked for " + accountToRevoke + " on file '" + title.encode('utf-8') + "'");
 
 
 

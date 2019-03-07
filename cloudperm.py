@@ -38,7 +38,7 @@ def get_credentials(flags):
     credential_dir = os.path.expanduser(flags.credential_directory)
     if not os.path.exists(credential_dir):
         os.makedirs(credential_dir)
-    credential_path = os.path.join(credential_dir, 'drive-python-quickstart.json')
+    credential_path = os.path.join(credential_dir, 'gdrive-auth-token.json')
     client_secret_file = os.path.join(credential_dir, 'client_secret.json');
 
     store = oauth2client.file.Storage(credential_path)
@@ -65,7 +65,7 @@ def retrieve_permissions(service, file_id):
     try:
         permissions = service.permissions().list(fileId=file_id).execute()
         return permissions.get('items', [])
-    except errors.HttpError, error:
+    except errors.HttpError as error:
         print ('An error occurred: %s' % error)
     return None
 
@@ -81,7 +81,7 @@ def retrieve_document_title(service, file_id):
     try:
         filemetadata = service.files().get(fileId=file_id).execute()
         return filemetadata['title']
-    except errors.HttpError, error:
+    except errors.HttpError as error:
         print ('An error occured: %s' % error)
     return None
 
@@ -99,7 +99,7 @@ def retrieve_document_parents(service, file_id):
     try:
         filemetadata = service.files().get(fileId=file_id).execute()
         return filemetadata['parents']
-    except errors.HttpError, error:
+    except errors.HttpError as error:
         print ('An error occured: %s' % error)
     return None
 
@@ -130,7 +130,7 @@ def retrieve_all_files(service):
             print("Next page token is " + page_token);
             if not page_token:
                 break
-        except errors.HttpError, error:
+        except errors.HttpError as error:
             print('An error occurred: %s' % error)
             break
         return result
@@ -162,7 +162,7 @@ def get_files_in_folder(service, folder_id):
             param['pageToken'] = page_token
             if not page_token:
                 break
-        except errors.HttpError, error:
+        except errors.HttpError as error:
             print('An error occurred while retrieving files in folder %s: %s' % (folder_id,error))
             break
     return result # Proof to me that python indentation requirement is stupid. I spent 2 hours trying to figure out why this
@@ -213,7 +213,7 @@ def build_first_path(service, file_id):
                 result = thefile['title'] + directory_separator + result
                 file_id = parentfile['id']
 
-        except errors.HttpError, error:
+        except errors.HttpError as error:
             print('An error occured: %s' % error)
             break
 
@@ -239,7 +239,7 @@ def revoke_document_role(service, file_id, role_id):
         # delete/revoke the permission from the document.
         returnval = service.permissions().delete(**param).execute()
         return returnval
-    except errors.HttpError, error:
+    except errors.HttpError as error:
         print ('An error occured: %s' % error)
 
 

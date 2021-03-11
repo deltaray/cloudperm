@@ -2,6 +2,10 @@
 A set of programs that help you check, audit report and change roles and permissions on popular Cloud platforms.
 Right now this is only for Google Drive/Docs.
 
+# NOTICE
+
+The current version of cloudperm is still using python2, which is end of life. A version that uses python3 is currently in development.
+
 # GOAL
 
  To automate the checking of access permissions on cloud file/document sharing platforms such as Google Drive and alert the user of unexpected changes.

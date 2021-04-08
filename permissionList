@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+# Include all the common functions and libraries.
+from cloudperm import *
+
+import configparser
+import csv
+import json
+
+# Add on any specific arguments that this program requires.
+try:
+    import argparse
+    parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
+    parser.add_argument('documents', metavar='DocumentID', type=str, nargs='+', help='Google Document IDs')
+    args = parser.parse_args()
+except ImportError:
+    args = None
+
+
+
+def main():
+    """
+    Connect to Google Drive and get the list of permissions for the DocumentIDs provided.
+    """
+
+    pp = pprint.PrettyPrinter(indent=4)
+
+    credentials = get_credentials(args)
+    http = credentials.authorize(httplib2.Http())
+    service = discovery.build('drive', 'v2', http=http)
+	
+    parser = configparser.ConfigParser()
+    parser.read("DriveConfig.INI")
+
+    # Get our list of file IDs to check, either form the config file or from the command line arguments.
+
+    fileids = [];
+
+    if args.documents:
+        for fileid in args.documents:
+            fileids.append(fileid)
+        
+    else:
+        for section in parser.sections(): # Fix this later.
+            for name,value in parser.items(section):
+                if name == "url":
+                    fileids.append(value)
+
+    for fileid in fileids:
+        title = retrieve_document_title(service, fileid);
+        print("Document Title: " + str(title));
+        perm_list = retrieve_permissions(service, fileid)
+        parents = retrieve_document_parents(service, fileid)
+        #print("Parents: " + str(parents))
+        
+        
+        #set up dictionary to export to files 
+        count = 0 
+        perm_dict = {}
+        
+        for entry in perm_list:
+            if type(entry) is dict:
+                if 'emailAddress' in entry:
+                    print("  " + entry['role'] + ":  " + entry['emailAddress']);
+                    perm_dict[count] = (title, fileid, entry['name'], entry['role'], entry['emailAddress'])
+                else: # This probably is an entry that implies anyone with link or public.
+                    #print("Entry json: " + str(entry));
+                    if (entry['type'] == 'anyone' and entry['id'] == 'anyoneWithLink'):
+                        warning1= " WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT."
+                        print(warning1)
+                        perm_dict[count] = (warning1)
+                    elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
+                        warning2 = "  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH."
+                        print(warning2)
+                        perm_dict[count] = (warning2)
+                    elif (entry['type'] == 'domain'):
+                        permitted_domain = entry['domain'];
+                        domain_allowed_role = entry['role'];
+                        warning3 = "  WARNING: ANYONE FROM THE DOMAIN '" + permitted_domain + "' HAS '" + domain_allowed_role + "' PERMISSION TO THIS DOCUMENT."
+                        print(warning3)
+                        perm_dict[count] = (warning2)
+                    else:
+                        # Handle the unknown case in a helpful way.
+                        warning4 =" Unknown permission type:"
+                        print(warning4)
+                        perm_dict[count] = (warning4)
+                        pp = pprint.PrettyPrinter(indent=8,depth=6)
+                        pp.pprint(entry);
+                count +=1
+
+       #write .json file 
+    with open('permList.json', 'w') as json_file:
+       json.dump(perm_dict, json_file)
+   
+   #csv file create and write
+    with open('permList.csv', 'w') as csv_file:
+        csvwriter = csv.writer(csv_file)
+        #create header row
+       
+        
+        #write dictionary to .csv
+        for i in range(len(perm_dict)):
+            csvwriter.writerow(perm_dict[i])
+            i+=1
+    
+    #create and write TSV files   
+    with open('permList.tsv', 'w') as tsv_file:
+        tsvWriter = csv.writer(tsv_file, delimiter='\t')
+        #create header row
+       
+        
+        #write dictionary to .tsv
+        for j in range(len(perm_dict)):
+            tsvWriter.writerow(perm_dict[j])
+            j+=1   	
+
+if __name__ == '__main__':
+    main()
+
+

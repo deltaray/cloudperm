@@ -118,5 +118,5 @@ to you, however the author of the software usually runs the programs in this fas
   
 # AUTHORS
 
-cloudperm was written by Mark Krenz and is released under a GPL version 2 license.
+cloudperm was written by Mark Krenz and Matt Brownlee and is released under a GPL version 2 license.
 Some initial work on this project was also by Shruthi Katapally.

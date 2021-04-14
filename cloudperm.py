@@ -112,7 +112,6 @@ def retrieve_document_parents(service, file_id):
     Returns:
     List of parents
     """
-
     try:
         filemetadata = service.files().get(fileId=file_id).execute()
         return filemetadata['parents']

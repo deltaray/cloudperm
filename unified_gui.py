@@ -12,7 +12,7 @@ import sqlite3
 from sqlite3 import Error
 
 from cloudperm import *
-# from getFiles import *
+from getFiles import *
 # from revokeGUI import *
 # from cp_gui import *a
 # from auto_revoke import *
@@ -36,7 +36,7 @@ class unifiedGUI(tk.Tk):
   
         # iterating through a tuple consisting
         # of the different page layouts
-        for F in (StartPage, getFiles, Queries, autoRevoke, mRevoke):
+        for F in (StartPage, gFiles, Queries, autoRevoke, mRevoke):
   
             frame = F(container, self)
   
@@ -69,7 +69,7 @@ class StartPage(tk.Frame):
         label.grid(row = 0, column = 4, padx = 10, pady = 10) 
   
         button1 = ttk.Button(self, text ="getFiles",
-        command = lambda : controller.show_frame(getFiles))
+        command = lambda : controller.show_frame(gFiles))
      
         # putting the button in its place by
         # using grid
@@ -100,7 +100,7 @@ class StartPage(tk.Frame):
         button4.grid(row = 4, column = 1, padx = 10, pady = 10)
         
 ############################################################################
-class getFiles(tk.Frame):
+class gFiles(tk.Frame):
      
     def __init__(self, parent, controller):        
         tk.Frame.__init__(self, parent)       
@@ -134,9 +134,9 @@ class getFiles(tk.Frame):
         self.ent.delete(0, tk.END) 
         
         if value == 'a':
-            listFiles(start_file)
+            getFiles(start_file)
         else:
-            listFiles()
+            getFiles(None)
         
     def enter_click(self, event):
         if event.keysym == "Return" or "Enter":

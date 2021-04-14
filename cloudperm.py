@@ -3,13 +3,15 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import unicode_literals
-#python -m pip install mypy
+
 from builtins import str
 from future import standard_library
 standard_library.install_aliases()
 import httplib2
 import os
 import sys
+
+from pathlib import Path
 
 from googleapiclient import discovery
 from httplib2 import Http
@@ -31,14 +33,24 @@ import argparse
 cloudperm_argparser = argparse.ArgumentParser(parents=[tools.argparser], add_help=False)
 cloudperm_argparser.add_argument('--credential-directory', '-D', type=str, default='~/.credentials', help='Specify a credentials directory (default: ~/.credentials)')
 SCOPES = 'https://www.googleapis.com/auth/drive'
+######
+credential_dir = ".credentials"
+if not os.path.exists(credential_dir):
+    os.makedirs(credential_dir)
+    credential_path = os.path.join(credential_dir, 'gdrive-auth-token.json')
+    client_secret_file = os.path.join(credential_dir, 'client_secret.json');
+    
 store = file.Storage('storage.json')
 creds = store.get()
 if not creds or creds.invalid:
     flow = client.flow_from_clientsecrets('client_secret.json', SCOPES)
     creds = tools.run_flow(flow, store)
     credentials = creds
-DRIVE = discovery.build('drive', 'v3', http=creds.authorize(Http()))
+    
+#######   
+DRIVE = discovery.build('drive', 'v3', http=creds.authorize(Http()))       
 APPLICATION_NAME = 'CloudPerm'
+########
 
 ##############################################################
 def get_credentials(flags):
@@ -50,7 +62,7 @@ def get_credentials(flags):
 
     Returns:
         Credentials, the obtained credential.
-    """
+    """        
     return credentials
 
 def retrieve_permissions(service, file_id):

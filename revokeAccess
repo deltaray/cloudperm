@@ -1,14 +1,15 @@
-#!/usr/bin/python
-
-# This program revokes a specific user's access specified by their email address and the document ID.
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
+from tkinter import *
+from tkinter.messagebox import showinfo
+from random import *
+
+# This program revokes a specific user's access specified by their email address and the document ID.
 from cloudperm import *
 
 import pprint
-# ...
-
 
 try:
     import argparse
@@ -18,7 +19,7 @@ try:
     args = parser.parse_args()
 except ImportError:
     args = None
-
+     
 def main():
     """
     Loop through the list of provided document IDs and revoke
@@ -30,11 +31,12 @@ def main():
     credentials = get_credentials(args)
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('drive', 'v2', http=http)
-	
+    
     parser = SafeConfigParser()
     parser.read("DriveConfig.INI")
 
-    fileids = [];
+    # fileids = "["+ email +"]";
+    fileids = []
 
     accountToRevoke = args.revokeaccount
 
@@ -52,7 +54,7 @@ def main():
     for fileid in fileids:
         title = retrieve_document_title(service, fileid);
         perm_list = retrieve_permissions(service, fileid)
-       
+    
         accountrevoked = False;
         
         for entry in perm_list:
@@ -71,8 +73,6 @@ def main():
 
         if not accountrevoked:
             print("WARNING: access was not revoked for " + accountToRevoke + " on file '" + title.encode('utf-8') + "'");
-
-
 
 if __name__ == '__main__':
     main()

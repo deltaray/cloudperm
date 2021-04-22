@@ -1,24 +1,35 @@
+#!/usr/bin/env python3
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import unicode_literals
 
+from builtins import str
+from future import standard_library
+standard_library.install_aliases()
 import httplib2
 import os
 import sys
 
-from apiclient import discovery
-import oauth2client
-from oauth2client import client
-from oauth2client import tools
-from oauth2client import file
+from pathlib import Path
 
-from apiclient import errors
+from googleapiclient import discovery
+from httplib2 import Http
+from oauth2client import file, client, tools 
 
-from ConfigParser import SafeConfigParser
+import sqlite3
+from sqlite3 import Error
+
+import time
+from datetime import datetime
+
+from configparser import SafeConfigParser
 
 import pprint
 
 import re
-
-
 import argparse
+
 cloudperm_argparser = argparse.ArgumentParser(parents=[tools.argparser], add_help=False)
 cloudperm_argparser.add_argument('--credential-directory', '-D', type=str, default='~/.credentials', help='Specify a credentials directory (default: ~/.credentials)')
 #flags = cloudperm_argparser.parse_args()
@@ -29,10 +40,8 @@ APPLICATION_NAME = 'CloudPerm'
 
 def get_credentials(flags):
     """Gets valid user credentials from storage.
-
     If nothing has been stored, or if the stored credentials are invalid,
     the OAuth2 flow is completed to obtain the new credentials.
-
     Returns:
         Credentials, the obtained credential.
     """
@@ -42,19 +51,18 @@ def get_credentials(flags):
     credential_path = os.path.join(credential_dir, 'gdrive-auth-token.json')
     client_secret_file = os.path.join(credential_dir, 'client_secret.json');
 
-    store = oauth2client.file.Storage(credential_path)
+    store = file.Storage(credential_path)
     credentials = store.get()
     if not credentials or credentials.invalid:
         flow = client.flow_from_clientsecrets(client_secret_file, SCOPES)
         flow.user_agent = APPLICATION_NAME
         if flags:
             credentials = tools.run_flow(flow, store, flags)
-        else: # Needed only for compatibility with Python 2.6
-            credentials = tools.run(flow, store)
         print('Storing credentials to ' + credential_path)
     return credentials
 
 def retrieve_permissions(service, file_id):
+    
     """Retrieve a list of permissions.
 
     Args:
@@ -66,10 +74,12 @@ def retrieve_permissions(service, file_id):
     try:
         permissions = service.permissions().list(fileId=file_id).execute()
         return permissions.get('items', [])
+   
     except errors.HttpError as error:
         print ('An error occurred: %s' % error)
     return None
-
+    
+#used in permissionList
 def retrieve_document_title(service, file_id):
     """Retrieve the title of the document.
 
@@ -79,13 +89,15 @@ def retrieve_document_title(service, file_id):
     Returns:
     The title of the document
     """
+
     try:
         filemetadata = service.files().get(fileId=file_id).execute()
         return filemetadata['title']
     except errors.HttpError as error:
         print ('An error occured: %s' % error)
     return None
-
+   
+#used for permissions list 
 def retrieve_document_parents(service, file_id):
     # Call my parents! Call my parents! Call my parents! *stomp* *stomp* *stomp*
     """Retrieve the parents of the document.
@@ -96,14 +108,12 @@ def retrieve_document_parents(service, file_id):
     Returns:
     List of parents
     """
-
     try:
         filemetadata = service.files().get(fileId=file_id).execute()
         return filemetadata['parents']
     except errors.HttpError as error:
         print ('An error occured: %s' % error)
     return None
-
 
 def retrieve_all_files(service):
     """List all files using a google API query with no starting position.
@@ -112,18 +122,17 @@ def retrieve_all_files(service):
     """
     result = []
     page_token = None
-
+    #for batch processing the limit is 100 
     while True:
         try:
             param = {}
-            #param['maxResults'] = 1000
             param['maxResults'] = 1000
             param['q'] = "mimeType='image/jpeg'"
             if page_token:
                 param['pageToken'] = page_token
             files = service.files().list(**param).execute()
 
-            print("List files returned " + str(len(files.keys())) + " this time");
+            print("List files returned " + str(len(list(files.keys()))) + " this time");
 
             result.extend(files['items'])
             page_token = files.get('nextPageToken')
@@ -136,11 +145,9 @@ def retrieve_all_files(service):
             break
         return result
 
-
 def get_files_in_folder(service, folder_id):
     """Return an array of all the entities in a folder.
     """
-
     result = []
     page_token = None
     pp = pprint.PrettyPrinter(indent=4)
@@ -151,9 +158,6 @@ def get_files_in_folder(service, folder_id):
             param['maxResults'] = 1000
             param['q'] = "'" + folder_id + "' in parents"
 
-            # Just some other examples of queries you can use.
-            #param['q'] = "mimeType='application/vnd.google-apps.folder'"
-            #param['q'] = "modifiedDate > '2016-07-12T12:00:00'"
             if page_token:
                 param['pageToken'] = page_token
             files = service.files().list(**param).execute()
@@ -166,36 +170,32 @@ def get_files_in_folder(service, folder_id):
         except errors.HttpError as error:
             print('An error occurred while retrieving files in folder %s: %s' % (folder_id,error))
             break
-    return result # Proof to me that python indentation requirement is stupid. I spent 2 hours trying to figure out why this
-                  # this function was returning nothing only to realize that I didn't have my return statement in the 
-                  # right place because I didn't notice where it was. With brackets, I would have noticed this mistake.
-    #return files['items']
-
-
+    return result 
+                #   Proof to me that python indentation requirement is stupid. I spent 2 hours trying to figure out why this
+                #   this function was returning nothing only to realize that I didn't have my return statement in the 
+                #   right place because I didn't notice where it was. With brackets, I would have noticed this mistake.
+    # return files['items']
+    
+##called in listFiles 
 def walk_folders(service, folder_id, depth=0, excluded_folder_ids=[]):
     allfiles = []
     pp = pprint.PrettyPrinter(indent=4)
-
-    #files = get_files_in_folder(service, folder_id, True)
-    files = get_files_in_folder(service, folder_id)
+    files = get_files_in_folder(service, folder_id)  
     allfiles.extend(files)
     for file_entry in files:
         file_mimetype = file_entry['mimeType']
         file_id = file_entry['id']
         if file_mimetype == 'application/vnd.google-apps.folder' and (depth > 0) and file_id not in excluded_folder_ids:
             allfiles.extend(walk_folders(service, file_id, depth - 1, excluded_folder_ids))
-
     return allfiles
 
-
+#called in listFiles 
 def build_first_path(service, file_id):
     """Build the full path of the first parent in the list of parents
     """
     result = ""
     isroot = 0;
-
     directory_separator = u" \u25B6 "
-
     while isroot == 0:
         try:
             thefile = service.files().get(fileId=file_id).execute()
@@ -213,15 +213,13 @@ def build_first_path(service, file_id):
                 #print("Going up a dir to " + parentfile['id'])
                 result = thefile['title'] + directory_separator + result
                 file_id = parentfile['id']
-
         except errors.HttpError as error:
             print('An error occured: %s' % error)
             break
-
     result = re.sub('/$', '', result)
-
     return result
 
+#called in Revoke access
 def revoke_document_role(service, file_id, role_id):
     # A non batch operation to revoke a specific permission.
     """Revoke a specific permission on a permission file.
@@ -242,5 +240,3 @@ def revoke_document_role(service, file_id, role_id):
         return returnval
     except errors.HttpError as error:
         print ('An error occured: %s' % error)
-
-

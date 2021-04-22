@@ -5,6 +5,10 @@ import re
 
 from cloudperm import *
 
+#export processes
+import csv
+import json
+
 from googleapiclient import discovery
 from httplib2 import *
 
@@ -57,7 +61,10 @@ def main():
     if args.recursive:
         depth = args.max_depth # defaults to 1000, which probably means a loop.
         
-###########################################################################    
+###########################################################################
+    #create a dictionary 
+    listFileDict = {}    
+    
     # # Get our list of file IDs.
     key = 0
     for start_folder_id in folderids:
@@ -72,12 +79,15 @@ def main():
                 #not sure what this is doing exactly (think managing/formatting data)
                 if args.show_mime_type:
                     outputline = "{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                    listFileDict[tot_files]= (fileitem['id'], fileitem['mimeType'], path)
                 if args.long_list:
                     ownerlist = ",".join(fileitem['ownerNames'])
                     lastmodified = fileitem['modifiedDate']
                     outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
+                    listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
                 else: 
                     outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
+                    listFileDict[tot_files]=(fileitem['id'], path)
                 
                 sys.stdout.write(outputline)
                 
@@ -85,5 +95,34 @@ def main():
                 
     print("Total files: " + str(tot_files))
 
+    #write .json file 
+    with open('listFiles.json', 'w') as json_file:
+        json.dump(listFileDict, json_file)
+
+#csv file create and write
+    with open('listFiles.csv', 'w') as csv_file:
+        csvwriter = csv.writer(csv_file)
+        #create header row???
+        #write dictionary to .csv
+        for i in range(len(listFileDict)):
+            csvwriter.writerow(listFileDict[i])
+            i+=1
+    
+    #create and write TSV files   
+    with open('listFiles.tsv', 'w') as tsv_file:
+        tsvWriter = csv.writer(tsv_file, delimiter='\t')
+        #create header row
+        
+        #write dictionary to .tsv
+        for j in range(len(listFileDict)):
+            tsvWriter.writerow(listFileDict[j])
+            j+=1
+            
+    #things to think about adding:    
+    #create headers 
+    #write out listFileDict data to the csv
+    #write out total files 
+
 if __name__ == '__main__':
     main()
+

@@ -13,6 +13,10 @@ import sys
 
 from pathlib import Path
 
+#export processes
+import csv
+import json
+
 from googleapiclient import discovery
 from httplib2 import Http
 from oauth2client import file, client, tools 
@@ -29,6 +33,7 @@ import pprint
 
 import re
 import argparse
+
 
 cloudperm_argparser = argparse.ArgumentParser(parents=[tools.argparser], add_help=False)
 cloudperm_argparser.add_argument('--credential-directory', '-D', type=str, default='~/.credentials', help='Specify a credentials directory (default: ~/.credentials)')
@@ -160,7 +165,7 @@ def get_files_in_folder(service, folder_id):
 
             if page_token:
                 param['pageToken'] = page_token
-            files = service.files().list(**param).execute()
+            files = service.files().list(**param).execute() #lets try redoing this for batch processing ???/ not sure how maxResults fully works 
 
             result.extend(files['items'])
             page_token = files.get('nextPageToken')
@@ -248,18 +253,176 @@ def makeDB():
     c = conn.cursor()
     files_table = '''CREATE TABLE IF NOT EXISTS files (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
     user_perm = '''CREATE TABLE IF NOT EXISTS user_perms (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
-    # user_table = '''CREATE TABLE IF NOT EXISTS users (email text PRIMARY KEY, name text NOT NULL)'''
 
-    # file_writers_table = '''CREATE TABLE IF NOT EXISTS file_writers (writer_email text NOT NULL, fileID text NOT NULL, revoked text, FOREIGN KEY (writer_email) REFERENCES users (email), FOREIGN KEY (fileID) REFERENCES files (fileID))'''
-    # deleted_files = '''CREATE TABLE IF NOT EXISTS delete_files (fileID text NOT NULL)'''
+    new_files = '''CREATE TABLE IF NOT EXISTS file_update (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
+    perm_update = '''CREATE TABLE IF NOT EXISTS perm_update (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
+    deleted_files = '''CREATE TABLE IF NOT EXISTS delete_files (fileID text NOT NULL)'''
     #tables to compare and track changes with 
     # deleted = '''CREATE TABLE IF NOT EXISTS deleted (fileID text NOT NULL)'''
     # changed_writers = '''CREATE TABLE IF NOT EXISTS writer_mods (writer_email text NOT NULL, fileID text NOT NULL)'''
     c.execute(files_table)
     c.execute(user_perm)
-    # c.execute(file_writers_table)
-    # c.execute(deleted)
-    # c.execute(deleted_files)
+    c.execute(new_files)
+    c.execute(perm_update)
+    c.execute(deleted_files)
     # c.execute(changed_writers)
     conn.commit()
     conn.close() 
+
+def listFile(folderids, args = None):
+     #create a dictionary 
+    listFileDict = {} 
+    folderids=[]
+
+    tot_files=0    
+    
+    # # Get our list of file IDs.
+    key = 0
+
+    ##open database connection 
+    conn = sqlite3.connect('listFiles.db')
+    c = conn.cursor() 
+
+    for start_folder_id in folderids:
+        #calling walk_folders from cloudperm.py-> executes query through API 
+        returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
+        if type(returnedfiles) == list:
+            for fileitem in returnedfiles:
+                #pp.pprint(fileitem)
+                path = build_first_path(service,fileitem['id'])
+                #need this for writing to files, otherwise weird chatacters are created and will make it more work to use data in .csv/.tsv/.json
+                path = path.replace("▶", ">")
+                #not sure what this is doing exactly (think managing/formatting data)
+                if args.show_mime_type:
+                    outputline = "{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                    listFileDict[tot_files]= (fileitem['id'], fileitem['mimeType'], path)
+                if args.long_list:
+                    ownerlist = ",".join(fileitem['ownerNames'])
+                    lastmodified = fileitem['modifiedDate']
+                    parent_list = fileitem['parents']
+                    parent = parent_list[0]['id']
+                    outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
+                    listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
+                    c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
+                    conn.commit() 
+                else: 
+                    outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
+                    listFileDict[tot_files]=(fileitem['id'], path)
+                
+                sys.stdout.write(outputline)
+                
+                tot_files+=1
+                
+    print("Total files: " + str(tot_files))
+
+    
+
+    #write .json file 
+    with open('listFiles.json', 'w') as json_file:
+        json.dump(listFileDict, json_file)
+
+#csv file create and write
+    with open('listFiles.csv', 'w') as csv_file:
+        csvwriter = csv.writer(csv_file)
+        #create header row???
+        #write dictionary to .csv
+        for i in range(len(listFileDict)):
+            csvwriter.writerow(listFileDict[i])
+            i+=1
+    
+    #create and write TSV files   
+    with open('listFiles.tsv', 'w') as tsv_file:
+        tsvWriter = csv.writer(tsv_file, delimiter='\t')
+        #create header row
+        
+        #write dictionary to .tsv
+        for j in range(len(listFileDict)):
+            tsvWriter.writerow(listFileDict[j])
+            j+=1
+            
+    #things to think about adding:    
+    #create headers 
+    #write out listFileDict data to the csv
+    #write out total files 
+
+
+def permission(fileids, service):
+
+    # http = credentials.authorize(httplib2.Http())
+    # service = discovery.build('drive', 'v2', http=http)
+
+    for fileid in fileids:
+        title = retrieve_document_title(service, fileid);
+    print("Document Title: " + str(title));
+    perm_list = retrieve_permissions(service, fileid)
+    parents = retrieve_document_parents(service, fileid)
+    #print("Parents: " + str(parents))
+    
+    
+    #set up dictionary to export to files 
+    count = 0 
+    perm_dict = {}
+
+    ##open database connection 
+    conn = sqlite3.connect('listFiles.db')
+    c = conn.cursor()
+    
+    for entry in perm_list:
+        if type(entry) is dict:
+            if 'emailAddress' in entry:
+                print("  " + entry['role'] + ":  " + entry['emailAddress']);
+
+                c.execute("INSERT INTO user_perms (fileID, email_address, permission) VALUES (?,?,?)", (fileid, entry['emailAddress'], entry['role']))
+                conn.commit() 
+
+                perm_dict[count] = (title, fileid, entry['name'], entry['role'], entry['emailAddress'])
+            else: # This probably is an entry that implies anyone with link or public.
+                #print("Entry json: " + str(entry));
+                if (entry['type'] == 'anyone' and entry['id'] == 'anyoneWithLink'):
+                    warning1= " WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT."
+                    print(warning1)
+                    perm_dict[count] = (warning1)
+                elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
+                    warning2 = "  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH."
+                    print(warning2)
+                    perm_dict[count] = (warning2)
+                elif (entry['type'] == 'domain'):
+                    permitted_domain = entry['domain'];
+                    domain_allowed_role = entry['role'];
+                    warning3 = "  WARNING: ANYONE FROM THE DOMAIN '" + permitted_domain + "' HAS '" + domain_allowed_role + "' PERMISSION TO THIS DOCUMENT."
+                    print(warning3)
+                    perm_dict[count] = (warning2)
+                else:
+                    # Handle the unknown case in a helpful way.
+                    warning4 =" Unknown permission type:"
+                    print(warning4)
+                    perm_dict[count] = (warning4)
+                    pp = pprint.PrettyPrinter(indent=8,depth=6)
+                    pp.pprint(entry);
+            count +=1
+    print()
+    print()
+
+    #write .json file 
+    with open('permList.json', 'w') as json_file:
+        json.dump(perm_dict, json_file)
+
+    #csv file create and write
+    with open('permList.csv', 'w') as csv_file:
+        csvwriter = csv.writer(csv_file)
+        #create header row
+        #write dictionary to .csv
+        for i in range(len(perm_dict)):
+            csvwriter.writerow(perm_dict[i])
+            i+=1
+    
+    #create and write TSV files   
+    with open('permList.tsv', 'w') as tsv_file:
+        tsvWriter = csv.writer(tsv_file, delimiter='\t')
+        #create header row
+        #write dictionary to .tsv
+        for j in range(len(perm_dict)):
+            tsvWriter.writerow(perm_dict[j])
+            j+=1   	
+    
+    return

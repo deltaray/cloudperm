@@ -97,7 +97,7 @@ def listFile():
                     parent = parent_list[0]['id']
                     outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
                     listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
-                    c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
+                    c.execute("INSERT INTO file_update (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
                     conn.commit() 
                 else: 
                     outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
@@ -108,6 +108,42 @@ def listFile():
                 tot_files+=1
                 
     print("Total files: " + str(tot_files))
+
+    update_file = '''SELECT * FROM files'''
+    updating_file= c.execute(update_file)
+    updating_file= c.fetchall()
+
+    nfile = '''SELECT * FROM file_update'''
+
+    new_file= c.execute(nfile)
+    new_file= c.fetchall()
+
+    count = 0
+    for item in updating_file:
+        if item in new_file:
+        #holds file from last iteration in count, if it is not "file" then the item has been deleted from the drive
+        # if item['id'] == file['id']:
+            count += 1
+        # if count == 1:
+        #     if item['modified_time'] != file['modified_time']:
+        #         #update time here 
+        if count == 0:
+            ##insert fileID into deleted files table
+            c.execute("INSERT INTO delete_files SELECT fileID, fileID FROM files")
+            conn.commit()
+
+    for i in new_file:
+        if i in updating_file:
+            # if i == j
+            count +=1 
+        if count == 0:
+            ##insert file info int files table 
+            c.execute("INSERT INTO files SELECT *, fileID, fname, modified_time, parent FROM file_update")
+            conn.commit() 
+
+###delete the file_update table 
+    c.execute("DROP TABLE file_update")
+    conn.commit()
 
     
 

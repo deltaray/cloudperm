@@ -257,6 +257,9 @@ def makeDB():
     new_files = '''CREATE TABLE IF NOT EXISTS file_update (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
     perm_update = '''CREATE TABLE IF NOT EXISTS perm_update (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
     deleted_files = '''CREATE TABLE IF NOT EXISTS delete_files (fileID text NOT NULL)'''
+
+    # c.execute("DROP TABLE file_update")
+    # conn.commit()
     #tables to compare and track changes with 
     # deleted = '''CREATE TABLE IF NOT EXISTS deleted (fileID text NOT NULL)'''
     # changed_writers = '''CREATE TABLE IF NOT EXISTS writer_mods (writer_email text NOT NULL, fileID text NOT NULL)'''

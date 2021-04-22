@@ -118,34 +118,39 @@ def listFile():
     new_file= c.execute(nfile)
     new_file= c.fetchall()
 
+    delete = '''SELECT * FROM delete_files'''
+
+    deleted = c.execute(delete)
+    deleted = c.fetchall()
+
     count = 0
     for item in updating_file:
-        if item in new_file:
-        #holds file from last iteration in count, if it is not "file" then the item has been deleted from the drive
-        # if item['id'] == file['id']:
-            count += 1
-        # if count == 1:
-        #     if item['modified_time'] != file['modified_time']:
-        #         #update time here 
+        for file in new_file:
+            #holds file from last iteration in count, if it is not "file" then the item has been deleted from the drive
+            if item[0] == file[0]:
+                count += 1
+            if count == 1:
+                if item[2] != file[2]:
+                    #update time here
+                    c.execute("UPDATE files SET modified_time = ? WHERE fileID = ?", (file[2], item[0])) 
         if count == 0:
             ##insert fileID into deleted files table
-            c.execute("INSERT INTO delete_files SELECT fileID, fileID FROM files")
-            conn.commit()
+            if item[0] not in deleted:
+                c.execute("INSERT INTO delete_files (fileID) VALUES (?)", (item[0]))
+                conn.commit()
+        count = 0
 
     for i in new_file:
         if i in updating_file:
-            # if i == j
             count +=1 
         if count == 0:
             ##insert file info int files table 
-            c.execute("INSERT INTO files SELECT *, fileID, fname, modified_time, parent FROM file_update")
+            c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (i[0], i[1], i[2], i[3]))
             conn.commit() 
 
 ###delete the file_update table 
     c.execute("DROP TABLE file_update")
     conn.commit()
-
-    
 
     #write .json file 
     with open('listFiles.json', 'w') as json_file:

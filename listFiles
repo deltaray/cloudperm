@@ -12,6 +12,8 @@ import json
 from googleapiclient import discovery
 from httplib2 import *
 
+import sqlite3
+from sqlite3 import Error
 
 # From https://wiki.python.org/moin/PrintFails
 # Python tries to be too pedantic and ends up failing royally.
@@ -36,9 +38,12 @@ try:
 except ImportError:
     args = None
 
-def main():
+def listFile():
     """List all files and folders recursively under the specified folder id.
     """
+    #make database 
+    makeDB()
+
     fieldsep = u' \u2588 ' # Unicode Full block
 
     folderids = [];
@@ -67,6 +72,11 @@ def main():
     
     # # Get our list of file IDs.
     key = 0
+
+    ##open database connection 
+    conn = sqlite3.connect('listFiles.db')
+    c = conn.cursor() 
+
     for start_folder_id in folderids:
         #calling walk_folders from cloudperm.py-> executes query through API 
         returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
@@ -83,8 +93,12 @@ def main():
                 if args.long_list:
                     ownerlist = ",".join(fileitem['ownerNames'])
                     lastmodified = fileitem['modifiedDate']
+                    parent_list = fileitem['parents']
+                    parent = parent_list[0]['id']
                     outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
                     listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
+                    c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
+                    conn.commit() 
                 else: 
                     outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
                     listFileDict[tot_files]=(fileitem['id'], path)
@@ -94,6 +108,8 @@ def main():
                 tot_files+=1
                 
     print("Total files: " + str(tot_files))
+
+    
 
     #write .json file 
     with open('listFiles.json', 'w') as json_file:
@@ -124,5 +140,5 @@ def main():
     #write out total files 
 
 if __name__ == '__main__':
-    main()
+    listFile()
 

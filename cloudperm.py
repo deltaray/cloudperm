@@ -240,3 +240,26 @@ def revoke_document_role(service, file_id, role_id):
         return returnval
     except errors.HttpError as error:
         print ('An error occured: %s' % error)
+
+###make the database for comparison later 
+def makeDB():
+    
+    conn = sqlite3.connect('listFiles.db')
+    c = conn.cursor()
+    files_table = '''CREATE TABLE IF NOT EXISTS files (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
+    user_perm = '''CREATE TABLE IF NOT EXISTS user_perms (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
+    # user_table = '''CREATE TABLE IF NOT EXISTS users (email text PRIMARY KEY, name text NOT NULL)'''
+
+    # file_writers_table = '''CREATE TABLE IF NOT EXISTS file_writers (writer_email text NOT NULL, fileID text NOT NULL, revoked text, FOREIGN KEY (writer_email) REFERENCES users (email), FOREIGN KEY (fileID) REFERENCES files (fileID))'''
+    # deleted_files = '''CREATE TABLE IF NOT EXISTS delete_files (fileID text NOT NULL)'''
+    #tables to compare and track changes with 
+    # deleted = '''CREATE TABLE IF NOT EXISTS deleted (fileID text NOT NULL)'''
+    # changed_writers = '''CREATE TABLE IF NOT EXISTS writer_mods (writer_email text NOT NULL, fileID text NOT NULL)'''
+    c.execute(files_table)
+    c.execute(user_perm)
+    # c.execute(file_writers_table)
+    # c.execute(deleted)
+    # c.execute(deleted_files)
+    # c.execute(changed_writers)
+    conn.commit()
+    conn.close() 

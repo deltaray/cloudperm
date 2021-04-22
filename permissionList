@@ -6,6 +6,9 @@ import configparser
 import csv
 import json
 
+import sqlite3
+from sqlite3 import Error
+
 # Add on any specific arguments that this program requires.
 try:
     import argparse
@@ -16,8 +19,8 @@ except ImportError:
     args = None
 
 
-
-def main():
+makeDB() 
+def permissions():
     """
     Connect to Google Drive and get the list of permissions for the DocumentIDs provided.
     """
@@ -56,11 +59,19 @@ def main():
         #set up dictionary to export to files 
         count = 0 
         perm_dict = {}
+
+        ##open database connection 
+        conn = sqlite3.connect('listFiles.db')
+        c = conn.cursor()
         
         for entry in perm_list:
             if type(entry) is dict:
                 if 'emailAddress' in entry:
                     print("  " + entry['role'] + ":  " + entry['emailAddress']);
+
+                    c.execute("INSERT INTO user_perms (fileID, email_address, permission) VALUES (?,?,?)", (fileid, entry['emailAddress'], entry['role']))
+                    conn.commit() 
+
                     perm_dict[count] = (title, fileid, entry['name'], entry['role'], entry['emailAddress'])
                 else: # This probably is an entry that implies anyone with link or public.
                     #print("Entry json: " + str(entry));
@@ -114,6 +125,6 @@ def main():
             j+=1   	
 
 if __name__ == '__main__':
-    main()
+    permissions()
 
 

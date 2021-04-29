@@ -80,8 +80,8 @@ def retrieve_permissions(service, file_id):
         permissions = service.permissions().list(fileId=file_id).execute()
         return permissions.get('items', [])
    
-    except errors.HttpError as error:
-        print ('An error occurred: %s' % error)
+    except:
+        print ('Permissions not found')
     return None
     
 #used in permissionList
@@ -94,12 +94,35 @@ def retrieve_document_title(service, file_id):
     Returns:
     The title of the document
     """
-
+    
     try:
         filemetadata = service.files().get(fileId=file_id).execute()
         return filemetadata['title']
-    except errors.HttpError as error:
-        print ('An error occured: %s' % error)
+    except:
+        title = ""
+        for i in file_id:
+            title = title + i
+        print ('File not found')
+        conn = sqlite3.connect('listFiles.db')
+        c = conn.cursor()
+
+        delete = '''SELECT * FROM delete_files'''
+        
+        deleted= c.execute(delete)
+        deleted= c.fetchall()
+        dele = 0 
+        for d_id in deleted:
+            # print(d_id)
+            # c.execute("UPDATE user_perms SET permission = ? WHERE fileID = ?", ("DELETED", str(d_id)))
+            # conn.commit()
+            if d_id == file_id:
+                dele = 1
+        if dele==1:
+            c.execute("INSERT INTO delete_files (fileID) VALUES (?)", [str(title)])
+            conn.commit()
+            dele = 0
+            
+        
     return None
    
 #used for permissions list 
@@ -116,8 +139,8 @@ def retrieve_document_parents(service, file_id):
     try:
         filemetadata = service.files().get(fileId=file_id).execute()
         return filemetadata['parents']
-    except errors.HttpError as error:
-        print ('An error occured: %s' % error)
+    except:
+        print()
     return None
 
 def retrieve_all_files(service):
@@ -253,10 +276,11 @@ def makeDB():
     c = conn.cursor()
     files_table = '''CREATE TABLE IF NOT EXISTS files (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
     user_perm = '''CREATE TABLE IF NOT EXISTS user_perms (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
+    temp_perm= '''CREATE TABLE IF NOT EXISTS temp_perms (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
 
     new_files = '''CREATE TABLE IF NOT EXISTS file_update (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
     perm_update = '''CREATE TABLE IF NOT EXISTS perm_update (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
-    deleted_files = '''CREATE TABLE IF NOT EXISTS delete_files (fileID text NOT NULL)'''
+    deleted_files = '''CREATE TABLE IF NOT EXISTS delete_files (fileID text)'''
 
     # c.execute("DROP TABLE file_update")
     # conn.commit()
@@ -265,6 +289,7 @@ def makeDB():
     # changed_writers = '''CREATE TABLE IF NOT EXISTS writer_mods (writer_email text NOT NULL, fileID text NOT NULL)'''
     c.execute(files_table)
     c.execute(user_perm)
+    c.execute(temp_perm)
     c.execute(new_files)
     c.execute(perm_update)
     c.execute(deleted_files)
@@ -306,7 +331,7 @@ def listFile(folderids, args = None):
                     parent = parent_list[0]['id']
                     outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
                     listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
-                    c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
+                    c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?,)", (fileitem['id'], fileitem['title'], lastmodified, parent))
                     conn.commit() 
                 else: 
                     outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
@@ -350,10 +375,11 @@ def listFile(folderids, args = None):
 
 
 def permission(fileids, service):
+    makeDB()
 
     # http = credentials.authorize(httplib2.Http())
     # service = discovery.build('drive', 'v2', http=http)
-
+    
     for fileid in fileids:
         title = retrieve_document_title(service, fileid);
     print("Document Title: " + str(title));
@@ -370,41 +396,108 @@ def permission(fileids, service):
     conn = sqlite3.connect('listFiles.db')
     c = conn.cursor()
     
-    for entry in perm_list:
-        if type(entry) is dict:
-            if 'emailAddress' in entry:
-                print("  " + entry['role'] + ":  " + entry['emailAddress']);
+    try:
+        for entry in perm_list:
+            if type(entry) is dict:
+                if 'emailAddress' in entry:
+                    print("  " + entry['role'] + ":  " + entry['emailAddress']);
 
-                c.execute("INSERT INTO user_perms (fileID, email_address, permission) VALUES (?,?,?)", (fileid, entry['emailAddress'], entry['role']))
-                conn.commit() 
+                    c.execute("INSERT INTO temp_perms (fileID, email_address, permission) VALUES (?,?,?)", (fileid, entry['emailAddress'], entry['role']))
+                    conn.commit() 
 
-                perm_dict[count] = (title, fileid, entry['name'], entry['role'], entry['emailAddress'])
-            else: # This probably is an entry that implies anyone with link or public.
-                #print("Entry json: " + str(entry));
-                if (entry['type'] == 'anyone' and entry['id'] == 'anyoneWithLink'):
-                    warning1= " WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT."
-                    print(warning1)
-                    perm_dict[count] = (warning1)
-                elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
-                    warning2 = "  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH."
-                    print(warning2)
-                    perm_dict[count] = (warning2)
-                elif (entry['type'] == 'domain'):
-                    permitted_domain = entry['domain'];
-                    domain_allowed_role = entry['role'];
-                    warning3 = "  WARNING: ANYONE FROM THE DOMAIN '" + permitted_domain + "' HAS '" + domain_allowed_role + "' PERMISSION TO THIS DOCUMENT."
-                    print(warning3)
-                    perm_dict[count] = (warning2)
-                else:
-                    # Handle the unknown case in a helpful way.
-                    warning4 =" Unknown permission type:"
-                    print(warning4)
-                    perm_dict[count] = (warning4)
-                    pp = pprint.PrettyPrinter(indent=8,depth=6)
-                    pp.pprint(entry);
-            count +=1
-    print()
-    print()
+                    perm_dict[count] = (title, fileid, entry['name'], entry['role'], entry['emailAddress'])
+                else: # This probably is an entry that implies anyone with link or public.
+                    #print("Entry json: " + str(entry));
+                    if (entry['type'] == 'anyone' and entry['id'] == 'anyoneWithLink'):
+                        warning1= " WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT."
+                        print(warning1)
+                        perm_dict[count] = (warning1)
+                    elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
+                        warning2 = "  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH."
+                        print(warning2)
+                        perm_dict[count] = (warning2)
+                    elif (entry['type'] == 'domain'):
+                        permitted_domain = entry['domain'];
+                        domain_allowed_role = entry['role'];
+                        warning3 = "  WARNING: ANYONE FROM THE DOMAIN '" + permitted_domain + "' HAS '" + domain_allowed_role + "' PERMISSION TO THIS DOCUMENT."
+                        print(warning3)
+                        perm_dict[count] = (warning2)
+                    else:
+                        # Handle the unknown case in a helpful way.
+                        warning4 =" Unknown permission type:"
+                        print(warning4)
+                        perm_dict[count] = (warning4)
+                        pp = pprint.PrettyPrinter(indent=8,depth=6)
+                        pp.pprint(entry);
+                count +=1
+        print()
+        print()
+
+    except:
+        entry = "   "
+
+    ####queries to compare 
+    new = '''SELECT * FROM temp_perms'''
+    existing = '''SELECT * FROM user_perms'''
+    delete = '''SELECT * FROM delete_files'''
+
+    new_perms= c.execute(new)
+    new_perms= c.fetchall()
+
+    existing_perms= c.execute(existing)
+    existing_perms= c.fetchall()
+
+    deleted= c.execute(delete)
+    deleted= c.fetchall()
+        
+
+    #does any data need to be updated here? 
+    match = 0
+    #user in original permissions
+    for user in existing_perms:
+        ###is the docID and file ID the same?
+        ###if not revoked
+        ### if it is the same, update permission 
+        for person in new_perms:
+            if user == person:
+                match = 1
+                if match == 0:
+                    if user[0] == person[0]:
+                        if user[1] == person[1]:
+                            ###update the permisson due to a permussuon change 
+                            c.execute("UPDATE user_perms SET permission = ? WHERE fileID = ? AND email_address = ?", (person[2], user[0], user[1]))
+                            conn.commit()
+    
+        match = 0
+
+    #need to rerun the query since updates have been made to the databse, otherwise there is the potential for mismatch and data integrity compromise 
+    existing_perms= c.execute(existing)
+    existing_perms= c.fetchall()    
+
+    ##insert new users with new documents into the database 
+    perm_count = 0
+    for i in new_perms:
+        for j in existing_perms:
+            if i == j:
+                perm_count = 1
+        #perform the insertion         
+        if perm_count == 0:
+             c.execute("INSERT INTO user_perms(fileID, email_address, permission) VALUES (?,?,?)", (i[0], i[1], i[2]))
+             conn.commit()
+        else:
+            perm_count=0
+    
+    c.execute("DROP TABLE temp_perms")
+    conn.commit()
+
+    for item in deleted:
+        # print()
+        # print(item, "IN DELETED/permissions")
+        # print()
+        # what happens to user permissions if a file is deleted?
+        c.execute("UPDATE user_perms SET permission = 'File Deleted' WHERE fileID = ?", [str(item[0])])
+        conn.commit()
+
 
     #write .json file 
     with open('permList.json', 'w') as json_file:
@@ -428,4 +521,13 @@ def permission(fileids, service):
             tsvWriter.writerow(perm_dict[j])
             j+=1   	
     
+    return
+
+def drop():
+    ##open database connection 
+    conn = sqlite3.connect('listFiles.db')
+    c = conn.cursor()
+    c.execute("DROP TABLE file_update")
+    conn.commit()
+    conn.close()
     return

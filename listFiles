@@ -128,27 +128,40 @@ def listFile():
         for file in new_file:
             #holds file from last iteration in count, if it is not "file" then the item has been deleted from the drive
             if item[0] == file[0]:
-                count += 1
+                count = 1
             if count == 1:
                 if item[2] != file[2]:
                     #update time here
                     c.execute("UPDATE files SET modified_time = ? WHERE fileID = ?", (file[2], item[0])) 
+        #######SOME LOGIC ERROR BELOW, WILL INSERT INTO DELETED FILES EVEN IF ID IS ALREADY IN THERE
         if count == 0:
+            inser= 0
             ##insert fileID into deleted files table
-            if item[0] not in deleted:
-                c.execute("INSERT INTO delete_files (fileID) VALUES (?)", (item[0]))
+            ##attempt to fix duplicate insert error here
+            for delet in deleted:
+                if item[0] == delet[0]:
+                    inser = 1
+            if inser == 0:
+                c.execute("INSERT INTO delete_files (fileID) VALUES (?)", (item[0],))
                 conn.commit()
+        inser = 0
         count = 0
 
+
+    updating_file= c.execute(update_file)
+    updating_file= c.fetchall()
+
     for i in new_file:
-        if i in updating_file:
-            count +=1 
+        for j in updating_file:
+            if i[0] == j[0]:
+                count += 1
         if count == 0:
             ##insert file info int files table 
             c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (i[0], i[1], i[2], i[3]))
             conn.commit() 
+        count = 0
 
-###delete the file_update table 
+    ###delete the file_update table 
     c.execute("DROP TABLE file_update")
     conn.commit()
 
@@ -156,7 +169,7 @@ def listFile():
     with open('listFiles.json', 'w') as json_file:
         json.dump(listFileDict, json_file)
 
-#csv file create and write
+    #csv file create and write
     with open('listFiles.csv', 'w') as csv_file:
         csvwriter = csv.writer(csv_file)
         #create header row???

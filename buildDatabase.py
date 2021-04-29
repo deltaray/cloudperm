@@ -14,7 +14,6 @@ try:
 except ImportError:
     args = None
 
-
 def build():
     conn = sqlite3.connect('listFiles.db')
     c = conn.cursor() 
@@ -29,4 +28,10 @@ def build():
     for file in fileids:
         permission(file, service)
 
-build()
+##main
+try: 
+    drop()
+    build()
+except:
+    build()
+

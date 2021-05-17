@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+# Include all the common functions and libraries.
+from cloudperm import *
+
+import configparser
+import csv
+import json
+import sys
+
+import sqlite3
+from sqlite3 import Error
+
+# Add on any specific arguments that this program requires.
+try:
+    import argparse
+    parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
+    parser.add_argument('documents', metavar='DocumentID', type=str, nargs='+', help='Google Document IDs')
+    args = parser.parse_args()
+except ImportError:
+    args = None
+
+
+
+
+makeDB() 
+def main():
+    """
+    Take the two arguments, the first being the document id and the second one the destination folder.
+    We must determine the current location of the document by getting it's parent, then add/remove parents.
+    Base cases to handle:
+        \ less than 2 arguments were provided (error)
+        - More than two document ids were provided (in which case the last doc id is the destination folder)
+        \ The final document id is not a folder. (in which case we error out)
+        - document has multiple parents (do we remove from all previous parents? prompt user?
+        - document is a folder (in which case we can't move it)
+        - The person using the API doesn't own the file (in which case we can't move it)
+        - document is a normal document.
+    """
+
+    pp = pprint.PrettyPrinter(indent=4)
+
+    credentials = get_credentials(args)
+    http = credentials.authorize(httplib2.Http())
+    service = discovery.build('drive', 'v2', http=http)
+	
+    parser = configparser.ConfigParser()
+    parser.read("DriveConfig.INI")
+
+    # Get our list of file IDs to check, either form the config file or from the command line arguments.
+
+    fileids = [];
+
+    if len(args.documents) > 2:
+        print("ERROR: Right now this program only takes two arguments. Sorry.")
+        sys.exit(1)
+        
+
+    if len(args.documents) < 2:
+        print("ERROR: You must specify at least two document ids, the last of which must be a folder.")
+        sys.exit(1)
+
+    lastdocid = args.documents[-1]
+
+    # Check if the lastdocid is of type folder.
+    lastdoc = service.files().get(fileId=lastdocid).execute()
+    print(lastdocid)
+#    pp.pprint(lastdoc)
+    if lastdoc['mimeType'] != "application/vnd.google-apps.folder":
+        print("ERROR: The last document id provided must be a folder.")
+
+
+    fromdocid = args.documents[0]
+    fromdoc = service.files().get(fileId=fromdocid).execute()
+
+    if len(fromdoc['parents']) > 1:
+        print("ERROR: This program doesn't handle cases where a document has more than one parent folder.")
+        sys.exit(1)
+
+    # Get the doc's previous parent using the method from the API docs.
+#    filedata = service.files().get(fileId=fromdocid,
+#                                 fields='parents').execute()
+    previous_parent = fromdoc.get('parents.id')
+    filedata = service.files().update(fileId=fromdocid,
+                                        addParents=lastdocid,
+                                        removeParents=previous_parent,
+                                        fields='id, parents').execute()
+
+
+   # addParents
+
+
+#    if args.documents:
+#        for fileid in args.documents:
+#            fileids.append(fileid)
+#        
+#    else:
+#        for section in parser.sections(): # Fix this later.
+#            for name,value in parser.items(section):
+#                if name == "url":
+#                    fileids.append(value)
+    #####################################################################
+
+#    permission(fileids, service)
+
+if __name__ == '__main__':
+    main()
+
+

@@ -32,6 +32,7 @@ try:
     parser.add_argument('--max-depth', '-d', type=int, default=1000, help='The maximum depth that recursion can go.')
     parser.add_argument('--exclude-folder', '-E', type=str, default=[], action='append', help='Do not decend into the folder specified by the DocID')
     parser.add_argument('--show-mime-type', '-M', action='store_true', help='Show column for document MIME type')
+    parser.add_argument('--show-parents', '-P', action='store_true', help='Show the parent folder(s) of a document')
     parser.add_argument('--long-list', '-l', action='store_true', help='Show owner and date modified columns.')
     parser.add_argument('documents', metavar='DocID', type=str, nargs='*', help='Google Document IDs')
     args = parser.parse_args()
@@ -87,11 +88,18 @@ def listFile():
                 #need this for writing to files, otherwise weird chatacters are created and will make it more work to use data in .csv/.tsv/.json
                 path = path.replace("▶", ">")
                 #not sure what this is doing exactly (think managing/formatting data)
+
+                # I don't know if Google ever implemented multiple owners, but it's part of the API.
+                owners = fileitem['owners'] 
+                owneraddresses = []
+                for owner in owners:
+                    owneraddresses.append(owner['emailAddress'])
+                ownerstring = ",".join(owneraddresses)
+
                 if args.show_mime_type:
                     outputline = "{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
                     listFileDict[tot_files]= (fileitem['id'], fileitem['mimeType'], path)
                 if args.long_list:
-                    ownerlist = ",".join(fileitem['ownerNames'])
                     lastmodified = fileitem['modifiedDate']
                     parent_list = fileitem['parents']
                     parent = parent_list[0]['id']
@@ -99,6 +107,18 @@ def listFile():
                     listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
                     c.execute("INSERT INTO file_update (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
                     conn.commit() 
+                elif args.show_parents:  
+                    # gets and prints the parent folder ids for each document, which is useful info when moving files around.
+                    # This is a place holder for now, we need to figure out a better way to
+                    # incorporate this functionality into the long list functionality above.
+                    parents = fileitem['parents']
+                    parentids = []
+                    for parent in parents:
+                        parentids.append(parent['id'])
+                    parentstring = ",".join(parentids)
+                    #outputline = "{1:<45} {0} {2:<45} {0} {3:<30} {0} {4}\n".format(fieldsep, fileitem['id'], parentstring, ownerstring, path)
+                    outputline = "{1}{0}{2}{0}{3}{0}{4}\n".format(fieldsep, fileitem['id'], parentstring, ownerstring, path)
+                    listFileDict[tot_files]=(fileitem['id'], path)
                 else: 
                     outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
                     listFileDict[tot_files]=(fileitem['id'], path)

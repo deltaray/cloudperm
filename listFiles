@@ -34,6 +34,7 @@ try:
     parser.add_argument('--show-mime-type', '-M', action='store_true', help='Show column for document MIME type')
     parser.add_argument('--show-parents', '-P', action='store_true', help='Show the parent folder(s) of a document')
     parser.add_argument('--long-list', '-l', action='store_true', help='Show owner and date modified columns.')
+    parser.add_argument('--dump-objects', '-J', action='store_true', help='Dump all the data objects in JSON format.')
     parser.add_argument('documents', metavar='DocID', type=str, nargs='*', help='Google Document IDs')
     args = parser.parse_args()
 except ImportError:
@@ -78,56 +79,90 @@ def listFile():
     conn = sqlite3.connect('listFiles.db')
     c = conn.cursor() 
 
-    for start_folder_id in folderids:
-        #calling walk_folders from cloudperm.py-> executes query through API 
-        returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
-        if type(returnedfiles) == list:
-            for fileitem in returnedfiles:
-                #pp.pprint(fileitem)
-                path = build_first_path(service,fileitem['id'])
-                #need this for writing to files, otherwise weird chatacters are created and will make it more work to use data in .csv/.tsv/.json
-                path = path.replace("▶", ">")
-                #not sure what this is doing exactly (think managing/formatting data)
+# A file object dump is different enough and simple enough that it is
+# nicely suited to having it's own loop.
+    if args.dump_objects:
+        print("[")
+        folder_counter = 0
+        file_counter = 0
+        number_of_folders = len(folderids)
 
-                # I don't know if Google ever implemented multiple owners, but it's part of the API.
-                owners = fileitem['owners'] 
-                owneraddresses = []
-                for owner in owners:
-                    owneraddresses.append(owner['emailAddress'])
-                ownerstring = ",".join(owneraddresses)
+        for start_folder_id in folderids:
+            folder_counter += 1
+            #calling walk_folders from cloudperm.py-> executes query through API 
+            returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
+            if type(returnedfiles) == list:
+                number_of_files = len(returnedfiles)
+                for fileitem in returnedfiles:
+                    file_counter += 1
+#                    json_obj = json.loads(fileitem)
+                    json_string = json.dumps(fileitem, indent=4)
+                    print(json_string)
+                    # How can we know if we're on the last item?
+                    # If we're on the last counter for folders and files at the same time.
+                    if folder_counter == number_of_folders and file_counter == number_of_files:
+                        # Don't print a seperator comma after the last element.
+                        pass
+                    else:
+                        print(",")
 
-                if args.show_mime_type:
-                    outputline = "{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
-                    listFileDict[tot_files]= (fileitem['id'], fileitem['mimeType'], path)
-                if args.long_list:
-                    lastmodified = fileitem['modifiedDate']
-                    parent_list = fileitem['parents']
-                    parent = parent_list[0]['id']
-                    outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
-                    listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
-                    c.execute("INSERT INTO file_update (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
-                    conn.commit() 
-                elif args.show_parents:  
-                    # gets and prints the parent folder ids for each document, which is useful info when moving files around.
-                    # This is a place holder for now, we need to figure out a better way to
-                    # incorporate this functionality into the long list functionality above.
-                    parents = fileitem['parents']
-                    parentids = []
-                    for parent in parents:
-                        parentids.append(parent['id'])
-                    parentstring = ",".join(parentids)
-                    #outputline = "{1:<45} {0} {2:<45} {0} {3:<30} {0} {4}\n".format(fieldsep, fileitem['id'], parentstring, ownerstring, path)
-                    outputline = "{1}{0}{2}{0}{3}{0}{4}\n".format(fieldsep, fileitem['id'], parentstring, ownerstring, path)
-                    listFileDict[tot_files]=(fileitem['id'], path)
-                else: 
-                    outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
-                    listFileDict[tot_files]=(fileitem['id'], path)
-                
-                sys.stdout.write(outputline)
-                
-                tot_files+=1
-                
-    print("Total files: " + str(tot_files))
+        print("]")
+
+    else:
+
+        for start_folder_id in folderids:
+            #calling walk_folders from cloudperm.py-> executes query through API 
+            returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
+            if type(returnedfiles) == list:
+                for fileitem in returnedfiles:
+                    #pp.pprint(fileitem)
+                    path = build_first_path(service,fileitem['id'])
+                    #need this for writing to files, otherwise weird chatacters are created and will make it more work to use data in .csv/.tsv/.json
+                    path = path.replace("▶", ">")
+                    #not sure what this is doing exactly (think managing/formatting data)
+
+                    # I don't know if Google ever implemented multiple owners, but it's part of the API.
+                    owners = fileitem['owners'] 
+                    owneraddresses = []
+                    for owner in owners:
+                        owneraddresses.append(owner['emailAddress'])
+                    ownerstring = ",".join(owneraddresses)
+                    mimetype = fileitem['mimeType']
+
+                    if args.show_mime_type:
+                        outputline = "{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                        listFileDict[tot_files]= (fileitem['id'], fileitem['mimeType'], path)
+                    if args.long_list:
+                        lastmodified = fileitem['modifiedDate']
+                        parent_list = fileitem['parents']
+                        parent = parent_list[0]['id']
+                        outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerstring,  lastmodified, path)
+                        listFileDict[tot_files]= (fileitem['id'], ownerstring,  lastmodified, path)
+                        c.execute("INSERT INTO file_update (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
+                        conn.commit() 
+                    elif args.show_parents:  
+                        # gets and prints the parent folder ids for each document, which is useful info when moving files around.
+                        # This is a place holder for now, we need to figure out a better way to
+                        # incorporate this functionality into the long list functionality above.
+                        parents = fileitem['parents']
+                        parentids = []
+                        for parent in parents:
+                            parentids.append(parent['id'])
+                        parentstring = ",".join(parentids)
+                        #outputline = "{1:<45} {0} {2:<45} {0} {3:<30} {0} {4}\n".format(fieldsep, fileitem['id'], parentstring, ownerstring, path)
+                        outputline = "{1}{0}{2}{0}{3}{0}{4}{0}{5}\n".format(fieldsep, fileitem['id'], mimetype, parentstring, ownerstring, path)
+                        listFileDict[tot_files]=(fileitem['id'], path)
+
+
+                    else: 
+                        outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
+                        listFileDict[tot_files]=(fileitem['id'], path)
+                    
+                    sys.stdout.write(outputline)
+                    
+                    tot_files+=1
+                    
+        print("Total files: " + str(tot_files))
 
     update_file = '''SELECT * FROM files'''
     updating_file= c.execute(update_file)

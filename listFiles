@@ -1,19 +1,28 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 import re
+
+from cloudperm import *
+
+#export processes
+import csv
+import json
+
+from googleapiclient import discovery
+from httplib2 import *
+
 
 # From https://wiki.python.org/moin/PrintFails
 # Python tries to be too pedantic and ends up failing royally.
 # So we have to do this so that we can do things like pipe output to other commands.
 import sys, codecs, locale;
-sys.stdout = codecs.getwriter(locale.getpreferredencoding())(sys.stdout);
+#sys.stdout = codecs.getwriter(locale.getpreferredencoding())(sys.stdout);
 
-from cloudperm import *
 
 import pprint
 
-
+#command line stuff 
 try:
     import argparse
     parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
@@ -34,51 +43,86 @@ def main():
 
     folderids = [];
 
-	# Get the arguments for the folders to check or from the config file.
+    # Get the arguments for the folders to check or from the config file.
     if args.documents:
         for folderid in args.documents:
             folderids.append(folderid)
     else:
         folderids.append('root')
 
-#        for section in parser.sections(): # Fix this later.
-#            for name,value in parser.items(section):
-#                if name == "url":
-#                    folderids.append(value)
-
-
     pp = pprint.PrettyPrinter(indent=4)
 
     credentials = get_credentials(args)
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('drive', 'v2', http=http)
-    numberoffiles = 0
+    tot_files = 0
 
     depth = 0;
     if args.recursive:
         depth = args.max_depth # defaults to 1000, which probably means a loop.
-	
-    # Get our list of file IDs.
+        
+###########################################################################
+    #create a dictionary 
+    listFileDict = {}    
+    
+    # # Get our list of file IDs.
+    key = 0
     for start_folder_id in folderids:
+        #calling walk_folders from cloudperm.py-> executes query through API 
         returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
         if type(returnedfiles) == list:
             for fileitem in returnedfiles:
                 #pp.pprint(fileitem)
                 path = build_first_path(service,fileitem['id'])
+                #need this for writing to files, otherwise weird chatacters are created and will make it more work to use data in .csv/.tsv/.json
+                path = path.replace("▶", ">")
+                #not sure what this is doing exactly (think managing/formatting data)
                 if args.show_mime_type:
-                    outputline = u"{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                    outputline = "{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
+                    listFileDict[tot_files]= (fileitem['id'], fileitem['mimeType'], path)
                 if args.long_list:
                     ownerlist = ",".join(fileitem['ownerNames'])
                     lastmodified = fileitem['modifiedDate']
-                    outputline = u"{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
+                    outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
+                    listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
                 else: 
-                    outputline = u"{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
-                # Because it's unicode.
-                #sys.stdout.write(outputline.decode('utf-8'))
+                    outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
+                    listFileDict[tot_files]=(fileitem['id'], path)
+                
                 sys.stdout.write(outputline)
-                numberoffiles+=1
+                
+                tot_files+=1
+                
+    print("Total files: " + str(tot_files))
 
-    print("Total files: " + str(numberoffiles))
+    #write .json file 
+    with open('listFiles.json', 'w') as json_file:
+        json.dump(listFileDict, json_file)
+
+#csv file create and write
+    with open('listFiles.csv', 'w') as csv_file:
+        csvwriter = csv.writer(csv_file)
+        #create header row???
+        #write dictionary to .csv
+        for i in range(len(listFileDict)):
+            csvwriter.writerow(listFileDict[i])
+            i+=1
+    
+    #create and write TSV files   
+    with open('listFiles.tsv', 'w') as tsv_file:
+        tsvWriter = csv.writer(tsv_file, delimiter='\t')
+        #create header row
+        
+        #write dictionary to .tsv
+        for j in range(len(listFileDict)):
+            tsvWriter.writerow(listFileDict[j])
+            j+=1
+            
+    #things to think about adding:    
+    #create headers 
+    #write out listFileDict data to the csv
+    #write out total files 
 
 if __name__ == '__main__':
     main()
+

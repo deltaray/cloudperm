@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+# Include all the common functions and libraries.
+from cloudperm import *
+
+import configparser
+import csv
+import json
+import sys
+
+import sqlite3
+from sqlite3 import Error
+
+
+# Add on any specific arguments that this program requires.
+try:
+    import argparse
+    parser = argparse.ArgumentParser(parents=[cloudperm_argparser])
+    parser.add_argument('documents', metavar='DocumentID', type=str, nargs=1, help='Google Document IDs')
+    args = parser.parse_args()
+except ImportError:
+    args = None
+
+
+def print_usage():
+   print("""
+restoreToParents <json_file> <docID1> [docID2 docID3...]
+
+The 'json_file' file must be the output of listFiles -J
+docID arguments are Google Drive document IDs of the
+files you wish to put back into their parent folders
+as specified in 'json_file'.
+
+""")
+
+
+#makeDB() 
+def stealFolder(args):
+    """
+
+    Base cases to check for:
+      + Is only 1 argument provided?
+      + The only arguments passed should be a document id
+      + Is the document to move a folder?
+      + Is the folder inside the top level My Drive?
+      + Is the owner of the folder the same as the running user?
+      - Are there more than 490 files in the folder?
+      - Does the folder have more than one parent?
+      - Are there any files left over in the old folder after doing the initial operation.
+        - Maybe we should be locking out changes by removing permissions on the old folder after the first migration?
+    """
+
+    pp = pprint.PrettyPrinter(indent=4)
+    #pp.pprint(args)
+
+    #if args.documents:
+    #    print("length: " + str(len(args.documents)))
+
+    credentials = get_credentials(args)
+    http = credentials.authorize(httplib2.Http())
+    service = discovery.build('drive', 'v2', http=http)
+	
+    parser = configparser.ConfigParser()
+    parser.read("DriveConfig.INI")
+
+    # Get our list of file IDs to check, either from the config file or from the command line arguments.
+    #fileids = [];
+
+    # For now we're only going to handle one folder
+    if len(args.documents) < 1:
+        print_usage()
+        sys.exit(1)
+
+    # Check if the lastdocid is of type folder.
+#    lastdoc = service.files().get(fileId=lastdocid).execute()
+#    print(lastdocid)
+#    pp.pprint(lastdoc)
+
+
+    fromdocid = args.documents[0]
+    fromdoc = service.files().get(fileId=fromdocid).execute()
+    fromdoctitle = fromdoc['title']
+    newfromdoctitle = fromdoctitle + " (NEW DESTINATION)"
+
+    parentfolders = []
+
+    # Have to be able to handle multiple parents.
+    for parentfolder in fromdoc['parents']:
+        parentfolders.append(parentfolder['id'])
+        print("Parent folder id: " + parentfolder['id'])
+
+    print("Folder owner: " + fromdoc['ownerNames'][0] + " (" + fromdoc['owners'][0]['emailAddress'] + ")")
+
+    # Get the old folder sharing settings.
+    fromdocperms = retrieve_permissions(service, fromdocid) 
+#    pp.pprint(fromdocperms)
+
+    # Create the new folder.
+    new_folder_metadata = {
+        'title': newfromdoctitle,
+        'parents': fromdoc['parents'],
+        'mimeType': 'application/vnd.google-apps.folder'
+    }
+
+    newfolder = service.files().insert(body=new_folder_metadata, fields='id').execute()
+    print('New Folder ID: %s' % newfolder.get('id'))
+    newfolderid = newfolder['id']
+
+    childfiles = get_files_in_folder(service, fromdocid)    
+
+    number_of_files = len(childfiles)
+    print("folder file count: " + str(number_of_files))
+    if (number_of_files > 490): 
+        print("ERROR: This program may encounter an API bug with more than 490 files in a folder so is avoiding that situation.")
+
+    for childfile in childfiles:
+        child_file_id = childfile['id']
+        print("child file: " + childfile['title'] + " " + child_file_id)
+        # Because of the way this works, we dont' need to check if each child file/folder has multiple parents.
+        # We just need to add the new one and remove the old one.
+        childfile = service.files().update(fileId=child_file_id,
+                                    addParents=newfolderid,
+                                    removeParents=fromdocid,
+                                    fields='id, parents').execute()
+
+
+
+#    if len(fromdoc['parents']) > 1:
+#        print("ERROR: This program doesn't handle cases where a document has more than one parent folder.")
+#        sys.exit(1)
+
+    # Get the doc's previous parent using the method from the API docs.
+#    filedata = service.files().get(fileId=fromdocid,
+#                                 fields='parents').execute()
+#    previous_parent = fromdoc.get('parents.id')
+#    filedata = service.files().update(fileId=fromdocid,
+#                                        addParents=lastdocid,
+#                                        removeParents=previous_parent,
+#                                        fields='id, parents').execute()
+
+
+   # addParents
+
+
+#    if args.documents:
+#        for fileid in args.documents:
+#            fileids.append(fileid)
+#        
+#    else:
+#        for section in parser.sections(): # Fix this later.
+#            for name,value in parser.items(section):
+#                if name == "url":
+#                    fileids.append(value)
+    #####################################################################
+
+#    permission(fileids, service)
+
+if __name__ == '__main__':
+    stealFolder(args)
+
+

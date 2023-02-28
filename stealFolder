@@ -11,6 +11,10 @@ import sqlite3
 from sqlite3 import Error
 
 
+print("This doesn't work yet")
+sys.exit(1)
+
+
 # Add on any specific arguments that this program requires.
 try:
     import argparse
@@ -23,7 +27,7 @@ except ImportError:
 
 def print_usage():
    print("""
-restoreToParents <json_file> <docID1> [docID2 docID3...]
+stealFolder <json_file> <docID1> [docID2 docID3...]
 
 The 'json_file' file must be the output of listFiles -J
 docID arguments are Google Drive document IDs of the

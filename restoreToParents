@@ -10,6 +10,9 @@ import sys
 import sqlite3
 from sqlite3 import Error
 
+print("This doesn't work yet")
+sys.exit(1)
+
 
 # Add on any specific arguments that this program requires.
 try:

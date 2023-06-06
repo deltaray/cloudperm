@@ -34,36 +34,39 @@ import pprint
 import re
 import argparse
 
-
 cloudperm_argparser = argparse.ArgumentParser(parents=[tools.argparser], add_help=False)
 cloudperm_argparser.add_argument('--credential-directory', '-D', type=str, default='~/.credentials', help='Specify a credentials directory (default: ~/.credentials)')
-#flags = cloudperm_argparser.parse_args()
-
-#SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly'
 SCOPES = 'https://www.googleapis.com/auth/drive'
+######
+credential_dir = ".credentials"
+if not os.path.exists(credential_dir):
+    os.makedirs(credential_dir)
+    credential_path = os.path.join(credential_dir, 'gdrive-auth-token.json')
+    client_secret_file = os.path.join(credential_dir, 'client_secret.json');
+    
+store = file.Storage('storage.json')
+creds = store.get()
+if not creds or creds.invalid:
+    flow = client.flow_from_clientsecrets('client_secret.json', SCOPES)
+    creds = tools.run_flow(flow, store)
+    credentials = creds
+    
+#######   
+DRIVE = discovery.build('drive', 'v3', http=creds.authorize(Http()))       
 APPLICATION_NAME = 'CloudPerm'
+########
 
+##############################################################
 def get_credentials(flags):
+    credentials = creds
     """Gets valid user credentials from storage.
     If nothing has been stored, or if the stored credentials are invalid,
     the OAuth2 flow is completed to obtain the new credentials.
     Returns:
         Credentials, the obtained credential.
-    """
-    credential_dir = os.path.expanduser(flags.credential_directory)
-    if not os.path.exists(credential_dir):
-        os.makedirs(credential_dir)
-    credential_path = os.path.join(credential_dir, 'gdrive-auth-token.json')
-    client_secret_file = os.path.join(credential_dir, 'client_secret.json');
-
-    store = file.Storage(credential_path)
-    credentials = store.get()
-    if not credentials or credentials.invalid:
-        flow = client.flow_from_clientsecrets(client_secret_file, SCOPES)
-        flow.user_agent = APPLICATION_NAME
-        if flags:
-            credentials = tools.run_flow(flow, store, flags)
-        print('Storing credentials to ' + credential_path)
+    """        
+    # Previously had some code here to get creds from gdrive-auth-token.json and client_secret.json
+    # Removed by matt
     return credentials
 
 def retrieve_permissions(service, file_id):
@@ -246,186 +249,180 @@ def revoke_document_role(service, file_id, role_id):
     except errors.HttpError as error:
         print ('An error occured: %s' % error)
 
-###make the database for comparison later 
+# Matt moved the following functions out of this file.
+#   listFile()
+#   permission()
+
+#######New functionalities######### 
+######################################################################################################
+###DATABSE GLOBAL VARS
+conn = sqlite3.connect('listFiles.db')
+c = conn.cursor()
+####modify api batch size here
+#can be changed to up to 1000 --> will determine number of files/folders returned per batch request 
+batch_size = 200 #global var ##200-400 recommended 
+start_token = None
+######################################################################################################
+
+#make database    
 def makeDB():
     
     conn = sqlite3.connect('listFiles.db')
     c = conn.cursor()
-    files_table = '''CREATE TABLE IF NOT EXISTS files (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
-    user_perm = '''CREATE TABLE IF NOT EXISTS user_perms (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
-
-    new_files = '''CREATE TABLE IF NOT EXISTS file_update (fileID text PRIMARY KEY, fname text NOT NULL, modified_time smalldatetime, parent text NOT NULL)'''
-    perm_update = '''CREATE TABLE IF NOT EXISTS perm_update (fileID text NOT NULL, email_address text NOT NULL, permission TEXT NOT NULL)'''
+    files_table = '''CREATE TABLE IF NOT EXISTS files (fileID text PRIMARY KEY, name text NOT NULL, owner_email text NOT NULL, last_modifier text NOT NULL, modified_time smalldatetime, FOREIGN KEY (owner_email) REFERENCES users (email), FOREIGN KEY (last_modifier) REFERENCES users(email))'''
+    users_table = '''CREATE TABLE IF NOT EXISTS users (email text PRIMARY KEY, name text NOT NULL)'''
+    file_writers_table = '''CREATE TABLE IF NOT EXISTS file_writers (writer_email text NOT NULL, fileID text NOT NULL, revoked text, FOREIGN KEY (writer_email) REFERENCES users (email), FOREIGN KEY (fileID) REFERENCES files (fileID))'''
     deleted_files = '''CREATE TABLE IF NOT EXISTS delete_files (fileID text NOT NULL)'''
-
-    # c.execute("DROP TABLE file_update")
-    # conn.commit()
     #tables to compare and track changes with 
-    # deleted = '''CREATE TABLE IF NOT EXISTS deleted (fileID text NOT NULL)'''
-    # changed_writers = '''CREATE TABLE IF NOT EXISTS writer_mods (writer_email text NOT NULL, fileID text NOT NULL)'''
+    deleted = '''CREATE TABLE IF NOT EXISTS deleted (fileID text NOT NULL)'''
+    changed_writers = '''CREATE TABLE IF NOT EXISTS writer_mods (writer_email text NOT NULL, fileID text NOT NULL)'''
     c.execute(files_table)
-    c.execute(user_perm)
-    c.execute(new_files)
-    c.execute(perm_update)
+    c.execute(users_table)
+    c.execute(file_writers_table)
+    c.execute(deleted)
     c.execute(deleted_files)
-    # c.execute(changed_writers)
+    c.execute(changed_writers)
     conn.commit()
     conn.close() 
-
-def listFile(folderids, args = None):
-     #create a dictionary 
-    listFileDict = {} 
-    folderids=[]
-
-    tot_files=0    
     
-    # # Get our list of file IDs.
-    key = 0
-
-    ##open database connection 
-    conn = sqlite3.connect('listFiles.db')
-    c = conn.cursor() 
-
-    for start_folder_id in folderids:
-        #calling walk_folders from cloudperm.py-> executes query through API 
-        returnedfiles = walk_folders(service, start_folder_id, depth, args.exclude_folder)
-        if type(returnedfiles) == list:
-            for fileitem in returnedfiles:
-                #pp.pprint(fileitem)
-                path = build_first_path(service,fileitem['id'])
-                #need this for writing to files, otherwise weird chatacters are created and will make it more work to use data in .csv/.tsv/.json
-                path = path.replace("▶", ">")
-                #not sure what this is doing exactly (think managing/formatting data)
-                if args.show_mime_type:
-                    outputline = "{1:<45} {0} {2:<45} {0} {3}\n".format(fieldsep, fileitem['id'], fileitem['mimeType'], path)
-                    listFileDict[tot_files]= (fileitem['id'], fileitem['mimeType'], path)
-                if args.long_list:
-                    ownerlist = ",".join(fileitem['ownerNames'])
-                    lastmodified = fileitem['modifiedDate']
-                    parent_list = fileitem['parents']
-                    parent = parent_list[0]['id']
-                    outputline = "{1:<45} {0} {2:<25} {0} {3} {0} {4}\n".format(fieldsep, fileitem['id'], ownerlist,  lastmodified, path)
-                    listFileDict[tot_files]= (fileitem['id'], ownerlist,  lastmodified, path)
-                    c.execute("INSERT INTO files (fileID, fname, modified_time, parent) VALUES (?,?,?,?)", (fileitem['id'], fileitem['title'], lastmodified, parent))
-                    conn.commit() 
-                else: 
-                    outputline = "{1:<45} {0} {2}\n".format(fieldsep, fileitem['id'], path)
-                    listFileDict[tot_files]=(fileitem['id'], path)
-                
-                sys.stdout.write(outputline)
-                
-                tot_files+=1
-                
-    print("Total files: " + str(tot_files))
-
+# update database from last location     
+def microUpdates(file_id, tokens, existing_files):    
+    start_time = datetime.now()    
+    page_token = tokens
+    original_len = len(existing_files)
+    id_list = existing_files
     
-
-    #write .json file 
-    with open('listFiles.json', 'w') as json_file:
-        json.dump(listFileDict, json_file)
-
-#csv file create and write
-    with open('listFiles.csv', 'w') as csv_file:
-        csvwriter = csv.writer(csv_file)
-        #create header row???
-        #write dictionary to .csv
-        for i in range(len(listFileDict)):
-            csvwriter.writerow(listFileDict[i])
-            i+=1
-    
-    #create and write TSV files   
-    with open('listFiles.tsv', 'w') as tsv_file:
-        tsvWriter = csv.writer(tsv_file, delimiter='\t')
-        #create header row
+    while True: 
+        if file_id is not None:
+            api_results = DRIVE.files().list(q ='"'+ file_id + '" in parents', pageSize= batch_size, fields="nextPageToken, files(permissions, id, name, lastModifyingUser, modifiedTime)").execute()
+        else:
+            api_results = DRIVE.files().list(pageToken=page_token, pageSize= batch_size, fields="nextPageToken, files(permissions, id, name, lastModifyingUser, modifiedTime)").execute()
+        page_token = api_results.get('nextPageToken', None)
+        all_items = api_results.get('files', [])  
         
-        #write dictionary to .tsv
-        for j in range(len(listFileDict)):
-            tsvWriter.writerow(listFileDict[j])
-            j+=1
-            
-    #things to think about adding:    
-    #create headers 
-    #write out listFileDict data to the csv
-    #write out total files 
-
-
-def permission(fileids, service):
-
-    # http = credentials.authorize(httplib2.Http())
-    # service = discovery.build('drive', 'v2', http=http)
-
-    for fileid in fileids:
-        title = retrieve_document_title(service, fileid);
-    print("Document Title: " + str(title));
-    perm_list = retrieve_permissions(service, fileid)
-    parents = retrieve_document_parents(service, fileid)
-    #print("Parents: " + str(parents))
-    
-    
-    #set up dictionary to export to files 
-    count = 0 
-    perm_dict = {}
-
-    ##open database connection 
-    conn = sqlite3.connect('listFiles.db')
-    c = conn.cursor()
-    
-    for entry in perm_list:
-        if type(entry) is dict:
-            if 'emailAddress' in entry:
-                print("  " + entry['role'] + ":  " + entry['emailAddress']);
-
-                c.execute("INSERT INTO user_perms (fileID, email_address, permission) VALUES (?,?,?)", (fileid, entry['emailAddress'], entry['role']))
-                conn.commit() 
-
-                perm_dict[count] = (title, fileid, entry['name'], entry['role'], entry['emailAddress'])
-            else: # This probably is an entry that implies anyone with link or public.
-                #print("Entry json: " + str(entry));
-                if (entry['type'] == 'anyone' and entry['id'] == 'anyoneWithLink'):
-                    warning1= " WARNING: ANYONE WITH THE LINK CAN READ THIS DOCUMENT."
-                    print(warning1)
-                    perm_dict[count] = (warning1)
-                elif (entry['type'] == 'anyone' and entry['id'] == 'anyone'):
-                    warning2 = "  WARNING: THIS DOCUMENT IS PUBLIC AND CAN BE FOUND AND READ BY ANYONE WITH A SEARCH."
-                    print(warning2)
-                    perm_dict[count] = (warning2)
-                elif (entry['type'] == 'domain'):
-                    permitted_domain = entry['domain'];
-                    domain_allowed_role = entry['role'];
-                    warning3 = "  WARNING: ANYONE FROM THE DOMAIN '" + permitted_domain + "' HAS '" + domain_allowed_role + "' PERMISSION TO THIS DOCUMENT."
-                    print(warning3)
-                    perm_dict[count] = (warning2)
-                else:
-                    # Handle the unknown case in a helpful way.
-                    warning4 =" Unknown permission type:"
-                    print(warning4)
-                    perm_dict[count] = (warning4)
-                    pp = pprint.PrettyPrinter(indent=8,depth=6)
-                    pp.pprint(entry);
-            count +=1
-    print()
-    print()
-
-    #write .json file 
-    with open('permList.json', 'w') as json_file:
-        json.dump(perm_dict, json_file)
-
-    #csv file create and write
-    with open('permList.csv', 'w') as csv_file:
-        csvwriter = csv.writer(csv_file)
-        #create header row
-        #write dictionary to .csv
-        for i in range(len(perm_dict)):
-            csvwriter.writerow(perm_dict[i])
-            i+=1
-    
-    #create and write TSV files   
-    with open('permList.tsv', 'w') as tsv_file:
-        tsvWriter = csv.writer(tsv_file, delimiter='\t')
-        #create header row
-        #write dictionary to .tsv
-        for j in range(len(perm_dict)):
-            tsvWriter.writerow(perm_dict[j])
-            j+=1   	
-    
+        ###do work with  data
+        filter_data(all_items, id_list)
+        
+        # keep count of total files in query #think this through as files are constantly being added and deleted 1 for 1... 
+        if original_len < len(id_list): 
+            print()
+            print("The number of new files found are:", len(id_list)-(original_len))
+            original_len +=1 
+            print("This update finished running at:", start_time)
+            print()
+            print()                    
+        if page_token is None:
+            break; 
     return
+
+##sort through all data / do work 
+def filter_data(data_set, file_list):
+    all_items = data_set
+    id_list = file_list
+    for item in all_items:
+        if item['id'] not in id_list:
+            id_list.append(item['id'])
+            c.execute("INSERT INTO deleted(fileID) VALUES(?)", [item['id']])
+            conn.commit()
+            print("File Data:", item['name'], item['id'], item['modifiedTime']) 
+        #sort through the lists of dictionaries for permissions data abd print out important data 
+        mod_count = 0 
+        #access nested api reply and insert into normalized databse without repeats 
+        for perm in item['permissions']:
+            if perm['role'] == 'owner':
+                #c.execute is for sqlite database work
+                new_files = '''SELECT fileID from files'''
+                new_res = c.execute(new_files)
+                new_res= c.fetchall() 
+                id_count = 0
+                for id in new_res:
+                    if item['id'] in id:
+                        id_count += 1
+                if id_count == 0:
+                    c.execute("INSERT INTO files (name, fileID, owner_email, last_modifier, modified_time) VALUES (?,?,?,?,?)", (item['name'], item['id'], perm['emailAddress'], item['lastModifyingUser']['emailAddress'], item['modifiedTime']))
+                    conn.commit()
+                    id_count = 0
+            else:  
+                #make sure entry isn't already in database before adding to dB       
+                changes = '''SELECT fileID FROM file_writers WHERE writer_email = ?'''
+                perm_email = perm['emailAddress']
+                res_changes= c.execute(changes, [perm_email])
+                res_changes = c.fetchall() 
+                perm_count = 0
+                c.execute("INSERT INTO writer_mods(writer_email, fileID) VALUES (?, ?)", (perm['emailAddress'], item['id']))
+                conn.commit()
+                for eadd in res_changes:
+                    if item['id'] in eadd: 
+                        perm_count+=1
+                if perm_count == 0:    
+                    c.execute("INSERT INTO file_writers(writer_email, fileID) VALUES (?, ?)", (perm['emailAddress'], item['id']))
+                    conn.commit()
+                    perm_count = 0
+            #make sure entry isn't already in database             
+            user_data = '''SELECT email FROM users'''
+            user_res = c.execute(user_data)
+            user_res = c.fetchall()
+            user_count = 0
+            for us in user_res:
+                if perm['emailAddress'] in us:
+                    user_count +=1
+            if user_count == 0:
+                # print("Permissions:", perm['emailAddress'], perm['displayName'], [perm['role']])
+                c.execute("INSERT INTO users (email, name) VALUES (?, ?)",  (perm['emailAddress'], perm['displayName']))
+                conn.commit()
+                user_count = 0
+                         
+        #get modification data for tampering
+        #see if there have been new modifications, if not don't update the field in the dB
+        mod_changes = '''SELECT modified_time from files WHERE fileID =?'''
+        mod_data = item['id']
+        moded = c.execute(mod_changes, [mod_data])
+        moded = c.fetchall()
+            
+        for dif in moded:
+            if item['modifiedTime'] in dif:
+                mod_count +=1
+            if mod_count == 0:
+                print("Mod data", item['modifiedTime'], dif)
+                up_last_mod = '''UPDATE files SET last_modifier = ? WHERE fileID = ?'''
+                up_mod_time = '''UPDATE files SET modified_time = ? WHERE fileID = ?'''               
+                c.execute(up_last_mod, (item['lastModifyingUser']['emailAddress'], item['id']))
+                conn.commit()
+                c.execute(up_mod_time,(item['modifiedTime'], item['id']))
+                conn.commit()
+                print("Modified Data:", item['lastModifyingUser']['displayName'], item['lastModifyingUser']['emailAddress'])
+                print()
+                print()   
+            mod_count = 0   
+                
+    #comparing the files in the most recent run of the database to the files that were there/ looking for deleted files             
+    all_IDs = '''SELECT fileID FROM deleted'''
+    ids = c.execute(all_IDs)
+    ids = c.fetchall() 
+    up_IDs = '''SELECT fileID FROM files'''
+    new_ids = c.execute(up_IDs)
+    new_ids = c.fetchall()  
+    del_files = c.execute('''SELECT fileID FROM delete_files''')
+    del_files = c.fetchall()
+    for id in new_ids:
+        if id not in ids:
+            if id not in del_files:
+                print("New Files", id[0])
+                c.execute('''INSERT INTO delete_files(fileID) VALUES(?)''', [id[0]])
+                conn.commit()
+                
+    #looking for permission changes in the drive and updating database to match        
+    user_perm = '''SELECT * FROM writer_mods'''
+    us_perm = c.execute(user_perm)
+    us_perm = c.fetchall()               
+    update_perm= '''SELECT writer_email, fileID FROM file_writers'''
+    up_perm= c.execute(update_perm)
+    up_perm= c.fetchall()
+    for item in up_perm:
+        if item not in us_perm:
+            write = '''UPDATE file_writers SET revoked = ? WHERE fileID = ? AND writer_email = ?'''
+            c.execute(write, ("revoked", item[1], item[0]))
+            conn.commit()
+    conn.commit()       
+
+makeDB()
